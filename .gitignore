@@ -27,3 +27,6 @@ dist-ssr
 emulator-account.pkey
 imports
 .env
+
+# Temp folder for development docs
+temp/
