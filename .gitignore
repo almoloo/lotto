@@ -1,3 +1,4 @@
+# flow
 # Logs
 logs
 *.log
@@ -22,3 +23,7 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+emulator-account.pkey
+imports
+.env

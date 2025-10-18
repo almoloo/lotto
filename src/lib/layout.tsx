@@ -1,7 +1,9 @@
-// REACT ROUTER LAYOUT
 import { NavLink, Outlet } from 'react-router';
+import { useFlowCurrentUser, Connect } from '@onflow/react-sdk';
 
 export default function Layout() {
+	const { user } = useFlowCurrentUser();
+
 	return (
 		<div>
 			<h1>My App</h1>
@@ -18,6 +20,9 @@ export default function Layout() {
 				>
 					Create Lotto
 				</NavLink>
+				<div className="ml-auto">
+					{user?.loggedIn ? `Hello, ${user.addr}` : <Connect />}
+				</div>
 			</div>
 			<Outlet />
 		</div>
