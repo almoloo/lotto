@@ -9,8 +9,10 @@
 		"lint": "eslint .",
 		"preview": "vite preview",
 		"flow:test": "flow test cadence/tests/Lotto_test.cdc",
-		"flow-emulator:start": "flow emulator start",
-		"flow:deploy:emulator": "flow project deploy --network=emulator"
+		"flow:emulator": "flow emulator start",
+		"flow:deploy:emulator": "flow project deploy --network emulator",
+		"flow:deploy:testnet": "flow project deploy --network testnet",
+		"flow:dev-wallet": "flow dev-wallet"
 	},
 	"dependencies": {
 		"@onflow/react-sdk": "^0.10.3",

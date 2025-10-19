@@ -1,11 +1,5 @@
 {
 	"contracts": {
-		"Counter": {
-			"source": "cadence/contracts/Counter.cdc",
-			"aliases": {
-				"testing": "0000000000000007"
-			}
-		},
 		"Lotto": {
 			"source": "cadence/contracts/Lotto.cdc",
 			"aliases": {
@@ -92,11 +86,25 @@
 				"type": "file",
 				"location": "emulator-account.pkey"
 			}
+		},
+		"my-testnet-account": {
+			"address": "89bea19a559101f1",
+			"key": {
+				"type": "file",
+				"location": "my-testnet-account.pkey"
+			}
 		}
 	},
 	"deployments": {
 		"emulator": {
-			"emulator-account": ["Lotto"]
+			"emulator-account": [
+				"Lotto"
+			]
+		},
+		"testnet": {
+			"my-testnet-account": [
+				"Lotto"
+			]
 		}
 	}
 }

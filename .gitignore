@@ -30,3 +30,5 @@ imports
 
 # Temp folder for development docs
 temp/
+
+my-testnet-account.pkey
