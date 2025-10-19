@@ -114,6 +114,11 @@ access(all) contract Lotto {
         access(all) view fun isActive(): Bool {
             return !self.isEnded && getCurrentBlock().timestamp < self.endTime
         }
+        
+        /// Mark session as ended (called when archiving or ending session)
+        access(contract) fun markAsEnded() {
+            self.isEnded = true
+        }
     }
 
     // ========================================
@@ -122,36 +127,78 @@ access(all) contract Lotto {
     
     /// Public interface to read session information
     access(all) resource interface SessionManagerPublic {
-        access(all) fun getSessionID(): UInt64?
-        access(all) fun getCreator(): Address?
-        access(all) fun getTicketPrice(): UFix64?
-        access(all) fun getEndTime(): UFix64?
-        access(all) fun getCreatedAt(): UFix64?
-        access(all) fun getIsEnded(): Bool
-        access(all) fun getTotalPool(): UFix64
-        access(all) fun getTotalTickets(): UInt64
-        access(all) fun isActive(): Bool
-        access(all) fun getParticipantTickets(address: Address): UInt64
+        access(all) fun getActiveSessionID(): UInt64?
+        access(all) fun getActiveSession(): SessionInfo?
+        access(all) fun getSessionByID(sessionID: UInt64): SessionInfo?
+        access(all) fun getAllSessions(): [SessionInfo]
+        access(all) fun getCompletedSessions(): [SessionInfo]
+        access(all) fun getTotalSessionsCount(): Int
+    }
+    
+    /// Struct to return session information
+    access(all) struct SessionInfo {
+        access(all) let sessionID: UInt64
+        access(all) let creator: Address
+        access(all) let ticketPrice: UFix64
+        access(all) let endTime: UFix64
+        access(all) let createdAt: UFix64
+        access(all) let isEnded: Bool
+        access(all) let totalPool: UFix64
+        access(all) let totalTickets: UInt64
+        access(all) let isActive: Bool
+        access(all) let participantTickets: {Address: UInt64}
+        
+        init(
+            sessionID: UInt64,
+            creator: Address,
+            ticketPrice: UFix64,
+            endTime: UFix64,
+            createdAt: UFix64,
+            isEnded: Bool,
+            totalPool: UFix64,
+            totalTickets: UInt64,
+            isActive: Bool,
+            participantTickets: {Address: UInt64}
+        ) {
+            self.sessionID = sessionID
+            self.creator = creator
+            self.ticketPrice = ticketPrice
+            self.endTime = endTime
+            self.createdAt = createdAt
+            self.isEnded = isEnded
+            self.totalPool = totalPool
+            self.totalTickets = totalTickets
+            self.isActive = isActive
+            self.participantTickets = participantTickets
+        }
     }
 
     // ========================================
     // Session Manager Resource
     // ========================================
     
-    /// Resource to manage a lottery session
+    /// Resource to manage lottery sessions with history
     access(all) resource SessionManager: SessionManagerPublic {
         
-        /// The session this manager controls
-        access(self) var session: @Session?
+        /// Currently active session
+        access(self) var activeSession: @Session?
+        
+        /// Archive of completed sessions
+        access(self) let completedSessions: @{UInt64: Session}
+        
+        /// List of all session IDs in order
+        access(all) let sessionIDs: [UInt64]
 
         init() {
-            self.session <- nil
+            self.activeSession <- nil
+            self.completedSessions <- {}
+            self.sessionIDs = []
         }
         
         /// Create a new lottery session
         access(all) fun createSession(creator: Address, ticketPrice: UFix64, endTime: UFix64) {
             pre {
-                self.session == nil: "Session already exists in this manager"
+                self.activeSession == nil: "An active session already exists. Complete it before creating a new one."
             }
             
             let newSession <- create Session(
@@ -161,8 +208,9 @@ access(all) contract Lotto {
             )
             
             let sessionID = newSession.sessionID
+            self.sessionIDs.append(sessionID)
             
-            self.session <-! newSession
+            self.activeSession <-! newSession
             
             emit SessionCreated(
                 sessionID: sessionID,
@@ -172,84 +220,108 @@ access(all) contract Lotto {
             )
         }
         
-        /// Get session ID
-        access(all) fun getSessionID(): UInt64? {
-            if let session = &self.session as &Session? {
+        /// Helper to convert Session to SessionInfo
+        access(self) fun sessionToInfo(_ session: &Session): SessionInfo {
+            // Copy the participantTickets dictionary
+            let ticketsCopy: {Address: UInt64} = {}
+            for address in session.participantTickets.keys {
+                ticketsCopy[address] = session.participantTickets[address]!
+            }
+            
+            return SessionInfo(
+                sessionID: session.sessionID,
+                creator: session.creator,
+                ticketPrice: session.ticketPrice,
+                endTime: session.endTime,
+                createdAt: session.createdAt,
+                isEnded: session.isEnded,
+                totalPool: session.getTotalPool(),
+                totalTickets: session.getTotalTickets(),
+                isActive: session.isActive(),
+                participantTickets: ticketsCopy
+            )
+        }
+        
+        /// Get active session ID
+        access(all) fun getActiveSessionID(): UInt64? {
+            if let session = &self.activeSession as &Session? {
                 return session.sessionID
             }
             return nil
         }
         
-        /// Get session creator
-        access(all) fun getCreator(): Address? {
-            if let session = &self.session as &Session? {
-                return session.creator
+        /// Get active session info
+        access(all) fun getActiveSession(): SessionInfo? {
+            if let session = &self.activeSession as &Session? {
+                return self.sessionToInfo(session)
             }
             return nil
         }
         
-        /// Get ticket price
-        access(all) fun getTicketPrice(): UFix64? {
-            if let session = &self.session as &Session? {
-                return session.ticketPrice
+        /// Get session by ID (checks both active and completed)
+        access(all) fun getSessionByID(sessionID: UInt64): SessionInfo? {
+            // Check active session first
+            if let activeSession = &self.activeSession as &Session? {
+                if activeSession.sessionID == sessionID {
+                    return self.sessionToInfo(activeSession)
+                }
             }
+            
+            // Check completed sessions
+            if let completedSession = &self.completedSessions[sessionID] as &Session? {
+                return self.sessionToInfo(completedSession)
+            }
+            
             return nil
         }
         
-        /// Get end time
-        access(all) fun getEndTime(): UFix64? {
-            if let session = &self.session as &Session? {
-                return session.endTime
+        /// Get all sessions (active + completed) in chronological order
+        access(all) fun getAllSessions(): [SessionInfo] {
+            let sessions: [SessionInfo] = []
+            
+            // Add all sessions in order of their IDs
+            for sessionID in self.sessionIDs {
+                if let sessionInfo = self.getSessionByID(sessionID: sessionID) {
+                    sessions.append(sessionInfo)
+                }
             }
-            return nil
+            
+            return sessions
         }
         
-        /// Get created at timestamp
-        access(all) fun getCreatedAt(): UFix64? {
-            if let session = &self.session as &Session? {
-                return session.createdAt
+        /// Get only completed sessions
+        access(all) fun getCompletedSessions(): [SessionInfo] {
+            let sessions: [SessionInfo] = []
+            
+            for sessionID in self.completedSessions.keys {
+                if let session = &self.completedSessions[sessionID] as &Session? {
+                    sessions.append(self.sessionToInfo(session))
+                }
             }
-            return nil
+            
+            return sessions
         }
         
-        /// Check if session is ended
-        access(all) fun getIsEnded(): Bool {
-            if let session = &self.session as &Session? {
-                return session.isEnded
-            }
-            return false
+        /// Get total number of sessions created
+        access(all) fun getTotalSessionsCount(): Int {
+            return self.sessionIDs.length
         }
         
-        /// Get total pool amount
-        access(all) fun getTotalPool(): UFix64 {
-            if let session = &self.session as &Session? {
-                return session.getTotalPool()
+        /// Archive active session (moves it to completed sessions)
+        access(all) fun archiveActiveSession() {
+            pre {
+                self.activeSession != nil: "No active session to archive"
             }
-            return 0.0
-        }
-        
-        /// Get total tickets sold
-        access(all) fun getTotalTickets(): UInt64 {
-            if let session = &self.session as &Session? {
-                return session.getTotalTickets()
+            
+            // Mark session as ended before archiving
+            if let session = &self.activeSession as &Session? {
+                session.markAsEnded()
             }
-            return 0
-        }
-        
-        /// Check if session is active
-        access(all) fun isActive(): Bool {
-            if let session = &self.session as &Session? {
-                return session.isActive()
-            }
-            return false
-        }
-        
-        /// Get ticket count for a participant
-        access(all) fun getParticipantTickets(address: Address): UInt64 {
-            if let session = &self.session as &Session? {
-                return session.participantTickets[address] ?? 0
-            }
-            return 0
+            
+            let session <- self.activeSession <- nil
+            let sessionID = session?.sessionID!
+            
+            self.completedSessions[sessionID] <-! session
         }
     }
 
