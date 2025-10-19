@@ -9,6 +9,7 @@
 		"lint": "eslint .",
 		"preview": "vite preview",
 		"flow:test": "flow test cadence/tests/Lotto_test.cdc",
+		"flow-emulator:start": "flow emulator start",
 		"flow:deploy:emulator": "flow project deploy --network=emulator"
 	},
 	"dependencies": {

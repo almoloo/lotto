@@ -6,10 +6,9 @@ function App() {
 	return (
 		<FlowProvider
 			config={{
-				accessNodeUrl: 'https://rest-testnet.onflow.org',
-				flowNetwork: 'testnet',
-				discoveryWallet:
-					'https://fcl-discovery.onflow.org/testnet/authn',
+				accessNodeUrl: import.meta.env.VITE_ACCESS_NODE_URL,
+				flowNetwork: import.meta.env.VITE_NETWORK,
+				discoveryWallet: import.meta.env.VITE_DISCOVERY_WALLET_URL,
 				appDetailTitle: 'Lotto Dapp',
 				appDetailIcon: 'https://flow.com/favicon.ico',
 				appDetailDescription: 'A decentralized lottery application',
