@@ -11,7 +11,7 @@
 		"flow:test": "flow test cadence/tests/Lotto_test.cdc",
 		"flow:emulator": "flow emulator start",
 		"flow:deploy:emulator": "flow project deploy --network emulator",
-		"flow:deploy:testnet": "flow project deploy --network testnet",
+		"flow:deploy:testnet": "flow project deploy --network testnet --update",
 		"flow:dev-wallet": "flow dev-wallet"
 	},
 	"dependencies": {

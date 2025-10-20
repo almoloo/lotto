@@ -1,4 +1,4 @@
-import { useParams } from 'react-router';
+import { NavLink, useParams } from 'react-router';
 import { useFlowQuery } from '@onflow/react-sdk';
 import { GET_ALL_SESSIONS } from '../lib/scripts';
 import { useEffect } from 'react';
@@ -37,52 +37,56 @@ export default function UserProfileView() {
 	}
 
 	// TODO: CREATE EMPTY STATE
-	// if (!data || data.length === 0) {
-	// 	return (
-	// 		<div>
-	// 			<h2>User Profile: {address}</h2>
-	// 			<p>No sessions found for this address.</p>
-	// 		</div>
-	// 	);
-	// }
+	if (!data || data.length === 0) {
+		return (
+			<div>
+				<h2>User Profile: {address}</h2>
+				<p>No sessions found for this address.</p>
+			</div>
+		);
+	}
 
 	// TODO: CREATE SESSION LISTING UI
-	// return (
-	// 	<div>
-	// 		<h2>User Profile: {address}</h2>
-	// 		<p>Total Sessions: {data.length}</p>
+	return (
+		<div>
+			<h2>User Profile: {address}</h2>
+			<p>Total Sessions: {data.length}</p>
 
-	// 		<div>
-	// 			<h3>All Sessions</h3>
-	// 			{data.map((session) => (
-	// 				<div
-	// 					key={session.sessionID}
-	// 					style={{
-	// 						border: '1px solid #ccc',
-	// 						padding: '10px',
-	// 						margin: '10px 0',
-	// 					}}
-	// 				>
-	// 					<h4>Session #{session.sessionID}</h4>
-	// 					<p>Ticket Price: {session.ticketPrice} FLOW</p>
-	// 					<p>
-	// 						End Time:{' '}
-	// 						{new Date(
-	// 							parseFloat(session.endTime) * 1000
-	// 						).toLocaleString()}
-	// 					</p>
-	// 					<p>
-	// 						Status:{' '}
-	// 						{session.isActive ? '🟢 Active' : '⚪ Ended'}
-	// 					</p>
-	// 					<p>Total Pool: {session.totalPoolAmount} FLOW</p>
-	// 					<p>Tickets Sold: {session.ticketsSold}</p>
-	// 					<p>Participants: {session.participantCount}</p>
-	// 				</div>
-	// 			))}
-	// 		</div>
-	// 	</div>
-	// );
-
-	return <div>User Profile Page for {address}</div>;
+			<div>
+				<h3>All Sessions</h3>
+				{data.map((session) => (
+					<div
+						key={session.sessionID}
+						style={{
+							border: '1px solid #ccc',
+							padding: '10px',
+							margin: '10px 0',
+						}}
+					>
+						<h4>Session #{session.sessionID}</h4>
+						<p>Ticket Price: {session.ticketPrice} FLOW</p>
+						<p>
+							End Time:{' '}
+							{new Date(
+								parseFloat(session.endTime) * 1000
+							).toLocaleString()}
+						</p>
+						<p>
+							Status:{' '}
+							{session.isActive ? '🟢 Active' : '⚪ Ended'}
+						</p>
+						<p>Total Pool: {session.totalPoolAmount} FLOW</p>
+						<p>Tickets Sold: {session.ticketsSold}</p>
+						<p>Participants: {session.participantCount}</p>
+						<NavLink
+							to={`/session/${session.creator}/${session.sessionID}`}
+							className="text-blue-500 underline"
+						>
+							View Session Details
+						</NavLink>
+					</div>
+				))}
+			</div>
+		</div>
+	);
 }

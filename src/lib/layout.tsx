@@ -1,7 +1,8 @@
 import { NavLink, Outlet } from 'react-router';
-import { Connect } from '@onflow/react-sdk';
+import { Connect, useFlowCurrentUser } from '@onflow/react-sdk';
 
 export default function Layout() {
+	const { user } = useFlowCurrentUser();
 	return (
 		<div>
 			<h1>My App</h1>
@@ -18,6 +19,14 @@ export default function Layout() {
 				>
 					Create Lotto
 				</NavLink>
+				{user && user.addr && (
+					<NavLink
+						to={`/u/${user.addr}`}
+						className="text-blue-500 underline"
+					>
+						User Profile
+					</NavLink>
+				)}
 				<div className="ml-auto">
 					<Connect />
 				</div>

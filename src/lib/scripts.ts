@@ -68,3 +68,99 @@ transaction(ticketPrice: UFix64, endTime: UFix64) {
     }
 }
 `;
+
+export const GET_SESSION_BY_ID = () => `
+import Lotto from ${contractAddress}
+
+access(all) fun main(sessionOwner: Address, sessionID: UInt64): Lotto.SessionInfo? {
+    let cap = getAccount(sessionOwner)
+        .capabilities.get<&Lotto.SessionManager>(Lotto.SessionPublicPath)
+    if let sessionManager = cap.borrow() {
+        return sessionManager.getSessionByID(sessionID: sessionID)
+    }
+    return nil
+}
+`;
+
+export const GET_USER_TICKET_STATUS = () => `
+import Lotto from ${contractAddress}
+
+access(all) struct UserTicketStatus {
+    access(all) let currentTickets: UInt64
+    access(all) let canBuyMore: Bool
+    access(all) let maxTickets: UInt64
+    access(all) let remainingTickets: UInt64
+    
+    init(currentTickets: UInt64, canBuyMore: Bool, maxTickets: UInt64, remainingTickets: UInt64) {
+        self.currentTickets = currentTickets
+        self.canBuyMore = canBuyMore
+        self.maxTickets = maxTickets
+        self.remainingTickets = remainingTickets
+    }
+}
+
+access(all) fun main(sessionOwner: Address, userAddress: Address): UserTicketStatus? {
+    let cap = getAccount(sessionOwner)
+        .capabilities.get<&Lotto.SessionManager>(Lotto.SessionPublicPath)
+    
+    if let sessionManager = cap.borrow() {
+        if sessionManager.getActiveSession() != nil {
+            let currentTickets = sessionManager.getUserTicketCountForActiveSession(user: userAddress)
+            let maxTickets = Lotto.maxTicketsPerWallet
+            let remainingTickets = maxTickets - currentTickets
+            let canBuyMore = sessionManager.canUserBuyTicketsForActiveSession(user: userAddress, numberOfTickets: 1)
+            
+            return UserTicketStatus(
+                currentTickets: currentTickets,
+                canBuyMore: canBuyMore,
+                maxTickets: maxTickets,
+                remainingTickets: remainingTickets
+            )
+        }
+    }
+    
+    return nil
+}
+`;
+
+export const BUY_TICKETS_TX = () => `
+import Lotto from ${contractAddress}
+import FungibleToken from ${fungibleTokenAddress}
+import FlowToken from ${flowTokenAddress}
+
+transaction(sessionOwner: Address, numberOfTickets: UInt64) {
+    let paymentVault: @FlowToken.Vault
+    let sessionManager: &Lotto.SessionManager
+    let buyerAddress: Address
+    
+    prepare(signer: auth(BorrowValue, Storage) &Account) {
+        self.buyerAddress = signer.address
+        
+        let managerCap = getAccount(sessionOwner)
+            .capabilities.get<&Lotto.SessionManager>(Lotto.SessionPublicPath)
+        
+        self.sessionManager = managerCap.borrow()
+            ?? panic("Could not borrow SessionManager from address")
+        
+        let sessionInfo = self.sessionManager.getActiveSession()
+            ?? panic("No active session found")
+        
+        let ticketPrice = sessionInfo.ticketPrice
+        let requiredAmount = ticketPrice * UFix64(numberOfTickets)
+        
+        let vault = signer.storage.borrow<auth(FungibleToken.Withdraw) &FlowToken.Vault>(
+            from: /storage/flowTokenVault
+        ) ?? panic("Could not borrow FlowToken vault from storage")
+        
+        self.paymentVault <- vault.withdraw(amount: requiredAmount) as! @FlowToken.Vault
+    }
+    
+    execute {
+        self.sessionManager.buyTicketsForActiveSession(
+            buyer: self.buyerAddress,
+            payment: <-self.paymentVault,
+            numberOfTickets: numberOfTickets
+        )
+    }
+}
+`;

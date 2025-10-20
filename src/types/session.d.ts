@@ -11,4 +11,10 @@ interface SessionInfo {
 	participantTickets: { [key: string]: string };
 }
 
-export { SessionInfo };
+interface UserTicketStatus {
+	currentTickets: string;
+	canBuyMore: boolean;
+	maxAdditionalTickets: string;
+}
+
+export { SessionInfo, UserTicketStatus };

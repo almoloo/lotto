@@ -45,14 +45,34 @@ access(all) contract Lotto {
         ticketPrice: UFix64, 
         endTime: UFix64
     )
+    access(all) event TicketPurchased(
+        sessionID: UInt64,
+        buyer: Address,
+        ticketsPurchased: UInt64,
+        totalTickets: UInt64,
+        amountPaid: UFix64,
+        newPoolTotal: UFix64
+    )
     access(all) event PlatformAddressUpdated(oldAddress: Address, newAddress: Address)
+
+    // ========================================
+    // Public Interfaces
+    // ========================================
+    
+    /// Public interface for buying tickets
+    access(all) resource interface SessionPublic {
+        access(all) fun buyTickets(buyer: Address, payment: @FlowToken.Vault, numberOfTickets: UInt64)
+        access(all) view fun getUserTicketCount(user: Address): UInt64
+        access(all) view fun canUserBuyTickets(user: Address, numberOfTickets: UInt64): Bool
+        access(all) fun getSessionInfo(): SessionInfo
+    }
 
     // ========================================
     // Session Resource
     // ========================================
     
     /// A lottery session that holds funds and manages participants
-    access(all) resource Session {
+    access(all) resource Session: SessionPublic {
         
         /// Unique identifier for this session
         access(all) let sessionID: UInt64
@@ -119,13 +139,115 @@ access(all) contract Lotto {
         access(contract) fun markAsEnded() {
             self.isEnded = true
         }
+        
+        /// Get number of tickets a user has purchased
+        access(all) view fun getUserTicketCount(user: Address): UInt64 {
+            return self.participantTickets[user] ?? 0
+        }
+        
+        /// Check if a user can buy a specific number of tickets
+        access(all) view fun canUserBuyTickets(user: Address, numberOfTickets: UInt64): Bool {
+            // Check if session is active
+            if !self.isActive() {
+                return false
+            }
+            
+            // Check if number of tickets is valid (1-3)
+            if numberOfTickets == 0 || numberOfTickets > Lotto.maxTicketsPerWallet {
+                return false
+            }
+            
+            // Check if user would exceed max tickets
+            let currentTickets = self.getUserTicketCount(user: user)
+            if currentTickets + numberOfTickets > Lotto.maxTicketsPerWallet {
+                return false
+            }
+            
+            return true
+        }
+        
+        /// Get session info struct (helper for external access)
+        access(all) fun getSessionInfo(): SessionInfo {
+            return self.toSessionInfo()
+        }
+        
+        /// Internal helper to convert Session to SessionInfo
+        access(self) fun toSessionInfo(): SessionInfo {
+            let ticketsCopy: {Address: UInt64} = {}
+            for address in self.participantTickets.keys {
+                ticketsCopy[address] = self.participantTickets[address]!
+            }
+            
+            return SessionInfo(
+                sessionID: self.sessionID,
+                creator: self.creator,
+                ticketPrice: self.ticketPrice,
+                endTime: self.endTime,
+                createdAt: self.createdAt,
+                isEnded: self.isEnded,
+                totalPool: self.getTotalPool(),
+                totalTickets: self.getTotalTickets(),
+                isActive: self.isActive(),
+                participantTickets: ticketsCopy
+            )
+        }
+        
+        /// Buy tickets for this session
+        access(all) fun buyTickets(buyer: Address, payment: @FlowToken.Vault, numberOfTickets: UInt64) {
+            pre {
+                self.isActive(): "Session is not active"
+                numberOfTickets > 0: "Must purchase at least 1 ticket"
+                numberOfTickets <= Lotto.maxTicketsPerWallet: "Cannot purchase more than max tickets per transaction"
+            }
+            
+            // Get current ticket count for buyer
+            let currentTickets = self.getUserTicketCount(user: buyer)
+            
+            // Check if buyer would exceed max tickets
+            assert(
+                currentTickets + numberOfTickets <= Lotto.maxTicketsPerWallet,
+                message: "Purchase would exceed maximum tickets per wallet (".concat(Lotto.maxTicketsPerWallet.toString()).concat(")")
+            )
+            
+            // Calculate required payment
+            let requiredAmount = self.ticketPrice * UFix64(numberOfTickets)
+            
+            // Validate exact payment
+            assert(
+                payment.balance == requiredAmount,
+                message: "Incorrect payment amount. Required: ".concat(requiredAmount.toString()).concat(" FLOW")
+            )
+            
+            // Deposit payment into session vault
+            self.vault.deposit(from: <-payment)
+            
+            // Add tickets to participants array (for random selection)
+            var i: UInt64 = 0
+            while i < numberOfTickets {
+                self.participants.append(buyer)
+                i = i + 1
+            }
+            
+            // Update participant ticket count
+            self.participantTickets[buyer] = currentTickets + numberOfTickets
+            
+            // Emit event
+            emit TicketPurchased(
+                sessionID: self.sessionID,
+                buyer: buyer,
+                ticketsPurchased: numberOfTickets,
+                totalTickets: currentTickets + numberOfTickets,
+                amountPaid: requiredAmount,
+                newPoolTotal: self.vault.balance
+            )
+        }
     }
 
     // ========================================
     // Public Interface
     // ========================================
     
-    /// Public interface to read session information
+    /// Public interface to read session information and buy tickets
     access(all) resource interface SessionManagerPublic {
         access(all) fun getActiveSessionID(): UInt64?
         access(all) fun getActiveSession(): SessionInfo?
@@ -133,6 +255,11 @@ access(all) contract Lotto {
         access(all) fun getAllSessions(): [SessionInfo]
         access(all) fun getCompletedSessions(): [SessionInfo]
         access(all) fun getTotalSessionsCount(): Int
+        
+        // Ticket purchase methods (routed to active session)
+        access(all) fun buyTicketsForActiveSession(buyer: Address, payment: @FlowToken.Vault, numberOfTickets: UInt64)
+        access(all) fun getUserTicketCountForActiveSession(user: Address): UInt64
+        access(all) fun canUserBuyTicketsForActiveSession(user: Address, numberOfTickets: UInt64): Bool
     }
     
     /// Struct to return session information
@@ -322,6 +449,33 @@ access(all) contract Lotto {
             let sessionID = session?.sessionID!
             
             self.completedSessions[sessionID] <-! session
+        }
+        
+        // ========================================
+        // Ticket Purchase Methods (Route to Active Session)
+        // ========================================
+        
+        /// Buy tickets for the active session
+        access(all) fun buyTicketsForActiveSession(buyer: Address, payment: @FlowToken.Vault, numberOfTickets: UInt64) {
+            pre {
+                self.activeSession != nil: "No active session"
+            }
+            
+            if let session = &self.activeSession as &Session? {
+                session.buyTickets(buyer: buyer, payment: <-payment, numberOfTickets: numberOfTickets)
+            } else {
+                panic("No active session")
+            }
+        }
+        
+        /// Get ticket count for a user in the active session
+        access(all) fun getUserTicketCountForActiveSession(user: Address): UInt64 {
+            return self.activeSession?.getUserTicketCount(user: user) ?? 0
+        }
+        
+        /// Check if user can buy tickets in the active session
+        access(all) fun canUserBuyTicketsForActiveSession(user: Address, numberOfTickets: UInt64): Bool {
+            return self.activeSession?.canUserBuyTickets(user: user, numberOfTickets: numberOfTickets) ?? false
         }
     }
 

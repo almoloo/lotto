@@ -147,3 +147,49 @@ access(all) fun testSessionHistory() {
     
     destroy sessionManager
 }
+
+access(all) fun testTicketPurchaseMethods() {
+    let creator = Test.getAccount(0x000000000000000B)
+    let buyer1 = Test.getAccount(0x000000000000000C)
+    
+    let sessionManager <- Lotto.createSessionManager()
+    
+    let currentTime = getCurrentBlock().timestamp
+    let endTime = currentTime + 3600.0
+    
+    // Create session
+    sessionManager.createSession(
+        creator: creator.address,
+        ticketPrice: 1.5,
+        endTime: endTime
+    )
+    
+    // Verify session manager has new ticket methods available
+    // Note: We can't actually test buyTickets without proper FlowToken vault setup
+    // but we can verify the query methods work
+    
+    // Test getUserTicketCountForActiveSession - should return 0 initially
+    let ticketCount = sessionManager.getUserTicketCountForActiveSession(user: buyer1.address)
+    Test.assertEqual(UInt64(0), ticketCount)
+    
+    // Test canUserBuyTicketsForActiveSession
+    let canBuyOne = sessionManager.canUserBuyTicketsForActiveSession(user: buyer1.address, numberOfTickets: 1)
+    Test.assertEqual(true, canBuyOne)
+    
+    let canBuyThree = sessionManager.canUserBuyTicketsForActiveSession(user: buyer1.address, numberOfTickets: 3)
+    Test.assertEqual(true, canBuyThree)
+    
+    let canBuyFour = sessionManager.canUserBuyTicketsForActiveSession(user: buyer1.address, numberOfTickets: 4)
+    Test.assertEqual(false, canBuyFour)
+    
+    let canBuyZero = sessionManager.canUserBuyTicketsForActiveSession(user: buyer1.address, numberOfTickets: 0)
+    Test.assertEqual(false, canBuyZero)
+    
+    // Verify session info is still accessible
+    let info = sessionManager.getActiveSession()!
+    Test.assertEqual(creator.address, info.creator)
+    Test.assertEqual(1.5, info.ticketPrice)
+    Test.assertEqual(true, info.isActive)
+    
+    destroy sessionManager
+}

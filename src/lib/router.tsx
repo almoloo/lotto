@@ -26,10 +26,13 @@ const router = createBrowserRouter([
 				},
 			},
 			{
-				path: '/session/:sessionId',
+				path: '/session/:address/:sessionId',
 				element: <LotterySessionView />,
 				loader: async ({ params }) => {
-					return { sessionId: params.sessionId };
+					return {
+						sessionId: params.sessionId,
+						address: params.address,
+					};
 				},
 			},
 		],
