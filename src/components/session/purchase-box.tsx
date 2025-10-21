@@ -21,7 +21,7 @@ export default function PurchaseBox(props: PurchaseBoxProps) {
 	const currentUser = useFlowCurrentUser();
 	const userAddress = currentUser?.user?.addr;
 
-	const [numberOfTickets, setNumberOfTickets] = useState(1);
+	const [numberOfTickets] = useState(1);
 
 	// const { data: ticketStatus, isLoading: isLoadingTicketStatus } =		useFlowQueryClient({
 	// 		cadence: GET_USER_TICKET_STATUS(),
@@ -32,20 +32,19 @@ export default function PurchaseBox(props: PurchaseBoxProps) {
 	// 		enabled: !!userAddress,
 	//   })
 
-	const { data: ticketStatus, isLoading: isLoadingTicketStatus } =
-		useFlowQuery({
-			cadence: GET_USER_TICKET_STATUS(),
-			args: (arg, t) => [
-				arg(address!, t.Address),
-				arg(userAddress! ?? '', t.Address),
-			],
-		}) as {
-			data: UserTicketStatus | null;
-			isLoading: boolean;
-			error: Error | null;
-		};
+	const { data: ticketStatus } = useFlowQuery({
+		cadence: GET_USER_TICKET_STATUS(),
+		args: (arg, t) => [
+			arg(address!, t.Address),
+			arg(userAddress! ?? '', t.Address),
+		],
+	}) as {
+		data: UserTicketStatus | null;
+		isLoading: boolean;
+		error: Error | null;
+	};
 
-	const { mutateAsync, isPending, error } = useFlowMutate();
+	const { mutateAsync } = useFlowMutate();
 
 	const handleBuyTickets = async () => {
 		try {
