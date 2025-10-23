@@ -3,11 +3,11 @@ interface SessionInfo {
 	creator: string;
 	ticketPrice: string;
 	endTime: string;
-	isActive: boolean;
+	createdAt: string;
 	isEnded: boolean;
-	totalPoolAmount: string;
-	ticketsSold: string;
-	participantCount: string;
+	totalPool: string;
+	totalTickets: string;
+	isActive: boolean;
 	participantTickets: { [key: string]: string };
 }
 

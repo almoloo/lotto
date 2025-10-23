@@ -1,37 +1,19 @@
-import { NavLink, Outlet } from 'react-router';
-import { Connect, useFlowCurrentUser } from '@onflow/react-sdk';
+import { Outlet } from 'react-router';
+import Header from '@/components/layout/header';
+import Footer from '@/components/layout/footer';
 
 export default function Layout() {
-	const { user } = useFlowCurrentUser();
 	return (
-		<div>
-			<h1>My App</h1>
-			<div className="flex gap-10">
-				<NavLink
-					to="/"
-					className="text-blue-500 underline"
-				>
-					Homepage
-				</NavLink>
-				<NavLink
-					to="/create"
-					className="text-blue-500 underline"
-				>
-					Create Lotto
-				</NavLink>
-				{user && user.addr && (
-					<NavLink
-						to={`/u/${user.addr}`}
-						className="text-blue-500 underline"
-					>
-						User Profile
-					</NavLink>
-				)}
-				<div className="ml-auto">
-					<Connect />
+		<div className="min-h-screen flex flex-col">
+			<Header />
+			<main className="xl:grid xl:grid-cols-12 flex-grow gap-20 px-5 xl:p-0">
+				<div className="hidden xl:block col-span-1 xl:col-span-3 bg-gradient-to-l from-emerald-100 to-emerald-500 rounded-r-4xl opacity-25 border border-emerald-200"></div>
+				<div className="col-span-10 xl:col-span-6">
+					<Outlet />
 				</div>
-			</div>
-			<Outlet />
+				<div className="hidden xl:block col-span-1 xl:col-span-3 bg-gradient-to-r from-emerald-100 to-emerald-500 rounded-l-4xl opacity-25 border border-emerald-200"></div>
+			</main>
+			<Footer />
 		</div>
 	);
 }

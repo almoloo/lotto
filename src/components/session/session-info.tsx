@@ -1,11 +1,38 @@
+import { formatAddress, generateExplorerLink } from '@/lib/utils';
 import type { SessionInfo } from '@/types/session';
+import {
+	AlarmClockIcon,
+	BadgeDollarSignIcon,
+	HourglassIcon,
+	ShieldUserIcon,
+} from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { NavLink } from 'react-router';
 
 export default function SessionInfo({ session }: { session: SessionInfo }) {
+	const [soldTickets, setSoldTickets] = useState<number>(0);
+	const [prizePool, setPrizePool] = useState<number>(0);
+
+	useEffect(() => {
+		const totalTickets = Object.values(session.participantTickets).reduce(
+			(acc, count) => acc + Number(count),
+			0
+		);
+		setSoldTickets(totalTickets);
+	}, [session.participantTickets]);
+
+	useEffect(() => {
+		const totalTickets = Object.values(session.participantTickets).reduce(
+			(acc, count) => acc + Number(count),
+			0
+		);
+		setPrizePool(totalTickets * parseFloat(session.ticketPrice));
+	}, [session.participantTickets, session.ticketPrice]);
+
 	// Calculate time remaining
 	const endTime = parseFloat(session.endTime) * 1000;
 	const now = Date.now();
 	const timeRemaining = endTime - now;
-	// const isExpired = timeRemaining <= 0;
 
 	// Format time remaining
 	const formatTimeRemaining = (ms: number) => {
@@ -22,49 +49,53 @@ export default function SessionInfo({ session }: { session: SessionInfo }) {
 	};
 
 	return (
-		<div>
-			<div
-				style={{
-					display: 'inline-block',
-					padding: '5px 15px',
-					borderRadius: '20px',
-					background: session.isActive ? '#4CAF50' : '#757575',
-					color: 'white',
-					fontSize: '14px',
-					fontWeight: 'bold',
-				}}
-			>
-				{session.isActive ? '🟢 Active' : '⚪ Ended'}
-			</div>
-
-			<div
-				style={{
-					background: '#f5f5f5',
-					padding: '20px',
-					borderRadius: '10px',
-					marginBottom: '20px',
-				}}
-			>
-				<h2 style={{ marginTop: 0 }}>Session Details</h2>
-
-				<div style={{ marginBottom: '10px' }}>
-					<strong>Creator:</strong> {session.creator}
+		<section className="flex justify-between items-center bg-slate-100 p-5 xl:p-10 rounded-3xl">
+			<div className="space-y-4">
+				<div className="flex items-center gap-2">
+					<ShieldUserIcon className="size-5 text-slate-400" />
+					<span className="text-sm text-slate-700">
+						Created by{' '}
+						<NavLink
+							className={
+								'font-mono text-blue-600 hover:underline'
+							}
+							to={generateExplorerLink(
+								session.creator,
+								'account'
+							)}
+							target="_blank"
+						>
+							{formatAddress(session.creator)}
+						</NavLink>
+					</span>
 				</div>
-
-				<div style={{ marginBottom: '10px' }}>
-					<strong>Ticket Price:</strong> {session.ticketPrice} FLOW
+				<div className="flex items-center gap-2">
+					<AlarmClockIcon className="size-5 text-slate-400" />
+					<span className="text-sm text-slate-700">
+						Deadline: {new Date(endTime).toLocaleString()}
+					</span>
 				</div>
-
-				<div style={{ marginBottom: '10px' }}>
-					<strong>End Time:</strong>{' '}
-					{new Date(endTime).toLocaleString()}
-				</div>
-
-				<div style={{ marginBottom: '10px' }}>
-					<strong>Time Remaining:</strong>{' '}
-					{formatTimeRemaining(timeRemaining)}
+				<div className="flex items-center gap-2">
+					<HourglassIcon className="size-5 text-slate-400" />
+					<span className="text-sm text-slate-700">
+						Time Remaining: {formatTimeRemaining(timeRemaining)}
+					</span>
 				</div>
 			</div>
-		</div>
+			<div className="space-y-1 shrink-0 border-l border-slate-300 pl-5 xl:pl-10 ml-5 xl:ml-10 border-dashed">
+				<small className="flex items-center gap-2 text-sm text-slate-400">
+					<BadgeDollarSignIcon className="size-4" />
+					<span>Total Prize Pool</span>
+				</small>
+				<div>
+					<h2 className="font-bold text-3xl text-orange-500">
+						{prizePool.toFixed(2)} FLOW
+					</h2>
+					<small className="text-sm text-slate-700">
+						{soldTickets} Tickets Sold
+					</small>
+				</div>
+			</div>
+		</section>
 	);
 }
