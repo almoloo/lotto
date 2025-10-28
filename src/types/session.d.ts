@@ -14,7 +14,8 @@ interface SessionInfo {
 interface UserTicketStatus {
 	currentTickets: string;
 	canBuyMore: boolean;
-	maxAdditionalTickets: string;
+	maxTickets: string;
+	remainingTickets: string;
 }
 
 export { SessionInfo, UserTicketStatus };

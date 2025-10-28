@@ -48,7 +48,7 @@ export default function UserProfileView() {
 
 	// TODO: CREATE SESSION LISTING UI
 	return (
-		<div>
+		<div className="flex flex-col gap-6 py-10">
 			<h2>User Profile: {address}</h2>
 			<p>Total Sessions: {data.length}</p>
 

@@ -5,6 +5,7 @@ import CreateLottoView from '../routes/CreateLotto';
 import Layout from './layout';
 import UserProfileView from '../routes/UserProfile';
 import LotterySessionView from '../routes/Session';
+import MySessionsView from '@/routes/MySessions';
 
 const router = createBrowserRouter([
 	{
@@ -24,6 +25,10 @@ const router = createBrowserRouter([
 				loader: async ({ params }) => {
 					return { address: params.address };
 				},
+			},
+			{
+				path: '/mysessions',
+				element: <MySessionsView />,
 			},
 			{
 				path: '/session/:address/:sessionId',

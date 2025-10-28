@@ -32,7 +32,7 @@ export default function Header() {
 						<NavLinkWrapper to="create">
 							Create Lotto
 						</NavLinkWrapper>
-						<NavLinkWrapper to={`/u/${user.addr}`}>
+						<NavLinkWrapper to="/mysessions">
 							My Lottos
 						</NavLinkWrapper>
 						<NavLinkWrapper to="/tickets">

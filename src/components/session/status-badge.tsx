@@ -1,3 +1,4 @@
+import { calculateTimeRemaining } from '@/lib/utils';
 import {
 	BatteryFullIcon,
 	BatteryLowIcon,
@@ -9,23 +10,25 @@ import { useEffect, useState } from 'react';
 interface StatusBadgeProps {
 	isActive: boolean;
 	isEnded: boolean;
-	endTime: number;
+	endTime: string;
+	startTime: string;
 }
 
 export default function StatusBadge({
 	isActive,
 	isEnded,
 	endTime,
+	startTime,
 }: StatusBadgeProps) {
 	const [isEnabled, setIsEnabled] = useState(isActive);
 	const [energy, setEnergy] = useState<0 | 1 | 2 | 3>(0);
 
 	useEffect(() => {
-		const now = Date.now();
-		if (now >= endTime) {
-			setIsEnabled(false);
-		} else {
+		const remainingTime = calculateTimeRemaining(endTime);
+		if (remainingTime) {
 			setIsEnabled(isActive && !isEnded);
+		} else {
+			setIsEnabled(false);
 		}
 	}, [isActive, endTime, isEnded]);
 
@@ -34,8 +37,9 @@ export default function StatusBadge({
 			setEnergy(0);
 		} else {
 			const now = Date.now();
-			const totalDuration = endTime - now;
-			const timeLeft = endTime - now;
+			const totalDuration =
+				parseFloat(endTime) * 1000 - parseFloat(startTime) * 1000;
+			const timeLeft = parseFloat(endTime) * 1000 - now;
 			const percentageLeft = timeLeft / totalDuration;
 
 			if (percentageLeft > 0.66) {
@@ -46,7 +50,7 @@ export default function StatusBadge({
 				setEnergy(1);
 			}
 		}
-	}, [isEnabled, endTime]);
+	}, [isEnabled, endTime, startTime]);
 
 	const background = isEnabled ? 'bg-emerald-400' : 'bg-gray-500';
 	const foreground = 'text-white';

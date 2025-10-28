@@ -1,4 +1,4 @@
-import { formatAddress, generateExplorerLink } from '@/lib/utils';
+import { calculateTimeRemaining, formatAddress } from '@/lib/utils';
 import type { SessionInfo } from '@/types/session';
 import {
 	AlarmClockIcon,
@@ -9,44 +9,56 @@ import {
 import { useEffect, useState } from 'react';
 import { NavLink } from 'react-router';
 
-export default function SessionInfo({ session }: { session: SessionInfo }) {
+interface SessionInfoProps {
+	participantTickets: { [key: string]: string };
+	ticketPrice: string;
+	endTime: string;
+	creator: string;
+}
+
+export default function SessionInfo({
+	participantTickets,
+	ticketPrice,
+	endTime,
+	creator,
+}: SessionInfoProps) {
 	const [soldTickets, setSoldTickets] = useState<number>(0);
 	const [prizePool, setPrizePool] = useState<number>(0);
+	const [timeRemaining, setTimeRemaining] = useState<string>('');
 
 	useEffect(() => {
-		const totalTickets = Object.values(session.participantTickets).reduce(
+		if (!participantTickets) return;
+		const totalTickets = Object.values(participantTickets).reduce(
 			(acc, count) => acc + Number(count),
 			0
 		);
 		setSoldTickets(totalTickets);
-	}, [session.participantTickets]);
+	}, [participantTickets]);
 
 	useEffect(() => {
-		const totalTickets = Object.values(session.participantTickets).reduce(
+		const totalTickets = Object.values(participantTickets).reduce(
 			(acc, count) => acc + Number(count),
 			0
 		);
-		setPrizePool(totalTickets * parseFloat(session.ticketPrice));
-	}, [session.participantTickets, session.ticketPrice]);
+		setPrizePool(totalTickets * parseFloat(ticketPrice));
+	}, [participantTickets, ticketPrice]);
 
-	// Calculate time remaining
-	const endTime = parseFloat(session.endTime) * 1000;
-	const now = Date.now();
-	const timeRemaining = endTime - now;
+	useEffect(() => {
+		const interval = setInterval(() => {
+			const endTime2 = Number(endTime) * 1000;
+			const now = Date.now();
+			const diff = endTime2 - now;
 
-	// Format time remaining
-	const formatTimeRemaining = (ms: number) => {
-		if (ms <= 0) return 'Ended';
-		const seconds = Math.floor(ms / 1000);
-		const minutes = Math.floor(seconds / 60);
-		const hours = Math.floor(minutes / 60);
-		const days = Math.floor(hours / 24);
+			if (diff <= 0) {
+				setTimeRemaining('Ended');
+				clearInterval(interval);
+			} else {
+				setTimeRemaining(calculateTimeRemaining(endTime)!);
+			}
+		}, 1000);
 
-		if (days > 0) return `${days}d ${hours % 24}h`;
-		if (hours > 0) return `${hours}h ${minutes % 60}m`;
-		if (minutes > 0) return `${minutes}m ${seconds % 60}s`;
-		return `${seconds}s`;
-	};
+		return () => clearInterval(interval);
+	}, [endTime]);
 
 	return (
 		<section className="flex justify-between items-center bg-slate-100 p-5 xl:p-10 rounded-3xl">
@@ -59,26 +71,28 @@ export default function SessionInfo({ session }: { session: SessionInfo }) {
 							className={
 								'font-mono text-blue-600 hover:underline'
 							}
-							to={generateExplorerLink(
-								session.creator,
-								'account'
-							)}
-							target="_blank"
+							// to={generateExplorerLink(
+							// 	session.creator,
+							// 	'account'
+							// )}
+							to={`/u/${creator}`}
+							// target="_blank"
 						>
-							{formatAddress(session.creator)}
+							{formatAddress(creator)}
 						</NavLink>
 					</span>
 				</div>
 				<div className="flex items-center gap-2">
 					<AlarmClockIcon className="size-5 text-slate-400" />
 					<span className="text-sm text-slate-700">
-						Deadline: {new Date(endTime).toLocaleString()}
+						Deadline:{' '}
+						{new Date(parseFloat(endTime) * 1000).toLocaleString()}
 					</span>
 				</div>
 				<div className="flex items-center gap-2">
 					<HourglassIcon className="size-5 text-slate-400" />
 					<span className="text-sm text-slate-700">
-						Time Remaining: {formatTimeRemaining(timeRemaining)}
+						Time Remaining: {timeRemaining}
 					</span>
 				</div>
 			</div>

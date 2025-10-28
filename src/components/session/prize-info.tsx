@@ -1,17 +1,19 @@
-import type { SessionInfo } from '@/types/session';
 import { useEffect, useState } from 'react';
 
-export default function PrizeInfo({ session }: { session: SessionInfo }) {
+interface PrizeInfoProps {
+	totalPool: string;
+}
+
+export default function PrizeInfo({ totalPool }: PrizeInfoProps) {
 	const [winnerPrize, setWinnerPrize] = useState<number>(0);
 	const [creatorFee, setCreatorFee] = useState<number>(0);
 	const [platformFee, setPlatformFee] = useState<number>(0);
 
 	useEffect(() => {
-		const totalPool = parseFloat(session.totalPool);
-		setWinnerPrize(totalPool * 0.85);
-		setCreatorFee(totalPool * 0.1);
-		setPlatformFee(totalPool * 0.05);
-	}, [session.totalPool]);
+		setWinnerPrize(parseFloat(totalPool) * 0.85);
+		setCreatorFee(parseFloat(totalPool) * 0.1);
+		setPlatformFee(parseFloat(totalPool) * 0.05);
+	}, [totalPool]);
 
 	return (
 		<section className="bg-slate-100 p-5 xl:p-10 rounded-3xl">

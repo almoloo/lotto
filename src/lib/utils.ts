@@ -20,3 +20,28 @@ export function generateExplorerLink(address: string, type: 'account' | 'tx') {
 	}
 	return `${baseUrl}/${type}/${address}`;
 }
+
+export function calculateTimeRemaining(
+	endTimestamp: number | string
+): string | null {
+	const endTime = Number(endTimestamp) * 1000;
+	const now = Date.now();
+	const diff = endTime - now;
+
+	if (diff <= 0) {
+		return null;
+	} else {
+		const days = Math.floor(diff / 86400000);
+		const hours = Math.floor((diff % 86400000) / 3600000);
+		const minutes = Math.floor((diff % 3600000) / 60000);
+		const seconds = Math.floor((diff % 60000) / 1000);
+
+		const parts = [];
+		if (days > 0) parts.push(`${days}d`);
+		if (hours > 0) parts.push(`${hours}h`);
+		if (minutes > 0) parts.push(`${minutes}m`);
+		if (seconds > 0 || parts.length === 0) parts.push(`${seconds}s`);
+
+		return parts.join(' ');
+	}
+}

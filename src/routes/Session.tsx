@@ -14,13 +14,14 @@ export default function LotterySessionView() {
 	const params = useParams<{ address: string; sessionId: string }>();
 	const { address, sessionId } = params;
 
-	const { data, isLoading, error } = useFlowQuery({
+	const { data, isLoading, error, refetch } = useFlowQuery({
 		cadence: GET_SESSION_BY_ID(),
 		args: (arg, t) => [arg(address!, t.Address), arg(sessionId!, t.UInt64)],
 	}) as {
 		data: SessionInfoType | null;
 		isLoading: boolean;
 		error: Error | null;
+		refetch: () => Promise<unknown>;
 	};
 
 	if (isLoading) {
@@ -50,17 +51,27 @@ export default function LotterySessionView() {
 				<StatusBadge
 					isActive={data.isActive}
 					isEnded={data.isEnded}
-					endTime={Number(data.endTime)}
+					endTime={data.endTime}
+					startTime={data.createdAt}
 				/>
 			</div>
 
-			<SessionInfo session={data} />
-			<PrizeInfo session={data} />
+			<SessionInfo
+				creator={data.creator}
+				endTime={data.endTime}
+				participantTickets={data.participantTickets}
+				ticketPrice={data.ticketPrice}
+			/>
 
-			{/* Participants List */}
+			<PrizeInfo totalPool={data.totalPool} />
+
 			<ParticipantBox participants={data.participantTickets} />
 
-			<PurchaseBox session={data} />
+			<PurchaseBox
+				isEnded={data.isEnded}
+				ticketPrice={data.ticketPrice}
+				refetch={refetch}
+			/>
 		</div>
 	);
 }
