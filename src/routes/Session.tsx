@@ -1,7 +1,10 @@
 import { useParams } from 'react-router';
 import { GET_SESSION_BY_ID } from '@/lib/scripts';
 import { useFlowQuery } from '@onflow/react-sdk';
-import type { SessionInfo as SessionInfoType } from '@/types/session';
+import {
+	getSessionState,
+	type SessionInfo as SessionInfoType,
+} from '@/types/session';
 import SessionInfo from '@/components/session/session-info';
 import PrizeInfo from '@/components/session/prize-info';
 import PurchaseBox from '@/components/session/purchase-box';
@@ -49,10 +52,9 @@ export default function LotterySessionView() {
 					Lotto Session #{data.sessionID}
 				</h1>
 				<StatusBadge
-					isActive={data.isActive}
-					isEnded={data.isEnded}
 					endTime={data.endTime}
 					startTime={data.createdAt}
+					state={getSessionState(data)}
 				/>
 			</div>
 

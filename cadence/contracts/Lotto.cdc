@@ -54,6 +54,21 @@ access(all) contract Lotto {
         newPoolTotal: UFix64
     )
     access(all) event PlatformAddressUpdated(oldAddress: Address, newAddress: Address)
+    access(all) event SessionClosed(sessionID: UInt64, totalPool: UFix64, totalTickets: UInt64)
+    access(all) event WinnerSelected(sessionID: UInt64, winner: Address, prize: UFix64)
+
+    // ========================================
+    // Enums
+    // ========================================
+    
+    /// Session lifecycle states
+    access(all) enum SessionState: UInt8 {
+        access(all) case Active       // Accepting tickets
+        access(all) case Expired      // Time passed, needs closing
+        access(all) case Closed       // Closed, ready for winner selection
+        access(all) case WinnerPicked // Winner selected, ready for distribution
+        access(all) case Completed    // Prizes distributed
+    }
 
     // ========================================
     // Public Interfaces
@@ -100,6 +115,15 @@ access(all) contract Lotto {
         
         /// Mapping of address to ticket count
         access(all) var participantTickets: {Address: UInt64}
+        
+        /// Session state
+        access(all) var state: SessionState
+        
+        /// Winner address (set after winner selection)
+        access(all) var winner: Address?
+        
+        /// Whether prizes have been distributed
+        access(all) var prizesDistributed: Bool
 
         init(creator: Address, ticketPrice: UFix64, endTime: UFix64) {
             pre {
@@ -116,6 +140,9 @@ access(all) contract Lotto {
             self.vault <- FlowToken.createEmptyVault(vaultType: Type<@FlowToken.Vault>())
             self.participants = []
             self.participantTickets = {}
+            self.state = SessionState.Active
+            self.winner = nil
+            self.prizesDistributed = false
             
             Lotto.nextSessionID = Lotto.nextSessionID + 1
         }
@@ -138,6 +165,28 @@ access(all) contract Lotto {
         /// Mark session as ended (called when archiving or ending session)
         access(contract) fun markAsEnded() {
             self.isEnded = true
+            self.state = SessionState.Closed
+        }
+        
+        /// Update session state based on current conditions
+        access(all) fun updateState() {
+            if self.prizesDistributed {
+                self.state = SessionState.Completed
+            } else if self.winner != nil {
+                self.state = SessionState.WinnerPicked
+            } else if self.isEnded {
+                self.state = SessionState.Closed
+            } else if getCurrentBlock().timestamp >= self.endTime {
+                self.state = SessionState.Expired
+            } else {
+                self.state = SessionState.Active
+            }
+        }
+        
+        /// Get current session state (auto-updates)
+        access(all) fun getState(): SessionState {
+            self.updateState()
+            return self.state
         }
         
         /// Get number of tickets a user has purchased
@@ -188,7 +237,10 @@ access(all) contract Lotto {
                 totalPool: self.getTotalPool(),
                 totalTickets: self.getTotalTickets(),
                 isActive: self.isActive(),
-                participantTickets: ticketsCopy
+                participantTickets: ticketsCopy,
+                state: self.getState(),
+                winner: self.winner,
+                prizesDistributed: self.prizesDistributed
             )
         }
         
@@ -274,6 +326,9 @@ access(all) contract Lotto {
         access(all) let totalTickets: UInt64
         access(all) let isActive: Bool
         access(all) let participantTickets: {Address: UInt64}
+        access(all) let state: SessionState
+        access(all) let winner: Address?
+        access(all) let prizesDistributed: Bool
         
         init(
             sessionID: UInt64,
@@ -285,7 +340,10 @@ access(all) contract Lotto {
             totalPool: UFix64,
             totalTickets: UInt64,
             isActive: Bool,
-            participantTickets: {Address: UInt64}
+            participantTickets: {Address: UInt64},
+            state: SessionState,
+            winner: Address?,
+            prizesDistributed: Bool
         ) {
             self.sessionID = sessionID
             self.creator = creator
@@ -297,6 +355,9 @@ access(all) contract Lotto {
             self.totalTickets = totalTickets
             self.isActive = isActive
             self.participantTickets = participantTickets
+            self.state = state
+            self.winner = winner
+            self.prizesDistributed = prizesDistributed
         }
     }
 
@@ -365,7 +426,10 @@ access(all) contract Lotto {
                 totalPool: session.getTotalPool(),
                 totalTickets: session.getTotalTickets(),
                 isActive: session.isActive(),
-                participantTickets: ticketsCopy
+                participantTickets: ticketsCopy,
+                state: session.getState(),
+                winner: session.winner,
+                prizesDistributed: session.prizesDistributed
             )
         }
         
