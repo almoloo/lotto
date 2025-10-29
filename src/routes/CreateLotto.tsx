@@ -1,14 +1,9 @@
-import { useEffect, useState } from 'react';
-import { CREATE_SESSION_TX, GET_ALL_SESSIONS } from '../lib/scripts';
-import {
-	useFlowMutate,
-	useFlowQuery,
-	useFlowCurrentUser,
-} from '@onflow/react-sdk';
+import { useState } from 'react';
+import { CREATE_SESSION_TX } from '../lib/scripts';
+import { useFlowMutate } from '@onflow/react-sdk';
 import * as z from 'zod';
 import { Controller, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { isSessionActive } from '../types/session';
 import {
 	Field,
 	FieldError,
@@ -33,7 +28,6 @@ import {
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { toast } from 'sonner';
 import { redirect } from 'react-router';
-import type { SessionInfo } from '@/types/session';
 
 const formSchema = z.object({
 	ticketPrice: z
@@ -49,12 +43,7 @@ const formSchema = z.object({
 });
 
 export default function CreateLottoView() {
-	const [userSessions, setUserSessions] = useState<SessionInfo[] | null>(
-		null
-	);
 	const [loadingSessions, setLoadingSessions] = useState<boolean>(false);
-
-	const { user } = useFlowCurrentUser();
 
 	const form = useForm<z.infer<typeof formSchema>>({
 		resolver: zodResolver(formSchema),
@@ -65,35 +54,6 @@ export default function CreateLottoView() {
 	});
 
 	const { mutateAsync, isPending, error } = useFlowMutate();
-
-	const { data: sessions, refetch } = useFlowQuery({
-		cadence: GET_ALL_SESSIONS(),
-		args: (arg, t) => [arg(user?.addr ?? '', t.Address)],
-	}) as {
-		data: SessionInfo[] | null;
-		refetch: () => void;
-	};
-
-	useEffect(() => {
-		if (sessions && sessions.length > 0) {
-			setUserSessions(sessions);
-			setLoadingSessions(false);
-		} else {
-			refetch();
-		}
-	}, [sessions, refetch]);
-
-	useEffect(() => {
-		if (userSessions && userSessions.length > 1) {
-			const activeSession = userSessions.find((session) =>
-				isSessionActive(session)
-			);
-
-			if (activeSession) {
-				redirect(`/sessions/${activeSession.sessionID}`);
-			}
-		}
-	}, [userSessions]);
 
 	async function handleSubmit(data: z.infer<typeof formSchema>) {
 		console.log('Form Data:', data);
@@ -109,7 +69,7 @@ export default function CreateLottoView() {
 			toast.success('Lotto session created successfully!');
 
 			setLoadingSessions(true);
-			refetch();
+			redirect(`/mysessions`);
 		} catch (error) {
 			console.error('Error creating session:', error);
 			toast.error('Failed to create lotto session. Please try again.');
