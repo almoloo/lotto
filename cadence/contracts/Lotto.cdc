@@ -1,6 +1,16 @@
 import "FungibleToken"
 import "FlowToken"
+import "FlowTransactionScheduler"
+import "FlowTransactionSchedulerUtils"
 
+/// Lotto - Decentralized Lottery System with Flow Forte Scheduled Transactions
+/// 
+/// This contract implements a fully autonomous lottery system using Flow Forte features:
+/// - Native Scheduled Transactions for automatic winner selection
+/// - Provably fair randomness with revertibleRandom()
+/// - Time-based session management
+/// - Automatic prize distribution (85% winner, 10% creator, 5% platform)
+///
 access(all) contract Lotto {
 
     // ========================================
@@ -15,6 +25,10 @@ access(all) contract Lotto {
     
     /// Maximum tickets per wallet
     access(all) let maxTicketsPerWallet: UInt64
+    
+    /// Delay in seconds after session end before automatic winner selection
+    /// This provides a buffer for final ticket purchases and adds security
+    access(all) let winnerSelectionDelayInSeconds: UFix64
 
     // ========================================
     // State Variables
@@ -33,6 +47,8 @@ access(all) contract Lotto {
     access(all) let SessionStoragePath: StoragePath
     access(all) let SessionPublicPath: PublicPath
     access(all) let AdminStoragePath: StoragePath
+    access(all) let WinnerSelectionHandlerStoragePath: StoragePath
+    access(all) let WinnerSelectionHandlerPublicPath: PublicPath
 
     // ========================================
     // Events
@@ -43,7 +59,8 @@ access(all) contract Lotto {
         sessionID: UInt64, 
         creator: Address, 
         ticketPrice: UFix64, 
-        endTime: UFix64
+        endTime: UFix64,
+        scheduledWinnerSelectionTime: UFix64
     )
     access(all) event TicketPurchased(
         sessionID: UInt64,
@@ -54,8 +71,22 @@ access(all) contract Lotto {
         newPoolTotal: UFix64
     )
     access(all) event PlatformAddressUpdated(oldAddress: Address, newAddress: Address)
-    access(all) event SessionClosed(sessionID: UInt64, totalPool: UFix64, totalTickets: UInt64)
-    access(all) event WinnerSelected(sessionID: UInt64, winner: Address, prize: UFix64)
+    access(all) event WinnerSelectionScheduled(
+        sessionID: UInt64,
+        creator: Address,
+        scheduledFor: UFix64,
+        scheduledTransactionID: UInt64?
+    )
+    access(all) event SessionExpired(sessionID: UInt64, totalPool: UFix64, totalTickets: UInt64)
+    access(all) event WinnerSelected(sessionID: UInt64, winner: Address, totalTickets: UInt64, winnerTickets: UInt64, prize: UFix64)
+    access(all) event PrizesDistributed(
+        sessionID: UInt64,
+        winner: Address,
+        winnerAmount: UFix64,
+        creatorAmount: UFix64,
+        platformAmount: UFix64
+    )
+    access(all) event SessionRefunded(sessionID: UInt64, creator: Address, refundAmount: UFix64)
 
     // ========================================
     // Enums
@@ -64,8 +95,7 @@ access(all) contract Lotto {
     /// Session lifecycle states
     access(all) enum SessionState: UInt8 {
         access(all) case Active       // Accepting tickets
-        access(all) case Expired      // Time passed, needs closing
-        access(all) case Closed       // Closed, ready for winner selection
+        access(all) case Expired      // Time passed, awaiting automatic winner selection
         access(all) case WinnerPicked // Winner selected, ready for distribution
         access(all) case Completed    // Prizes distributed
     }
@@ -104,6 +134,9 @@ access(all) contract Lotto {
         /// Timestamp when session was created
         access(all) let createdAt: UFix64
         
+        /// Timestamp when winner selection is scheduled (endTime + delay)
+        access(all) let scheduledWinnerSelectionTime: UFix64
+        
         /// Whether the session has ended
         access(all) var isEnded: Bool
         
@@ -136,6 +169,7 @@ access(all) contract Lotto {
             self.ticketPrice = ticketPrice
             self.endTime = endTime
             self.createdAt = getCurrentBlock().timestamp
+            self.scheduledWinnerSelectionTime = endTime + Lotto.winnerSelectionDelayInSeconds
             self.isEnded = false
             self.vault <- FlowToken.createEmptyVault(vaultType: Type<@FlowToken.Vault>())
             self.participants = []
@@ -162,10 +196,27 @@ access(all) contract Lotto {
             return !self.isEnded && getCurrentBlock().timestamp < self.endTime
         }
         
-        /// Mark session as ended (called when archiving or ending session)
+        /// Mark session as ended and expired (automatic on expiration)
         access(contract) fun markAsEnded() {
             self.isEnded = true
-            self.state = SessionState.Closed
+            self.state = SessionState.Expired
+        }
+        
+        /// Set the winner address (called after winner selection)
+        access(contract) fun setWinner(winner: Address) {
+            self.winner = winner
+            self.state = SessionState.WinnerPicked
+        }
+        
+        /// Mark prizes as distributed
+        access(contract) fun markPrizesDistributed() {
+            self.prizesDistributed = true
+            self.state = SessionState.Completed
+        }
+        
+        /// Withdraw from vault (only callable by SessionManager for prize distribution)
+        access(contract) fun withdrawFromVault(amount: UFix64): @{FungibleToken.Vault} {
+            return <- self.vault.withdraw(amount: amount)
         }
         
         /// Update session state based on current conditions
@@ -174,9 +225,7 @@ access(all) contract Lotto {
                 self.state = SessionState.Completed
             } else if self.winner != nil {
                 self.state = SessionState.WinnerPicked
-            } else if self.isEnded {
-                self.state = SessionState.Closed
-            } else if getCurrentBlock().timestamp >= self.endTime {
+            } else if self.isEnded || getCurrentBlock().timestamp >= self.endTime {
                 self.state = SessionState.Expired
             } else {
                 self.state = SessionState.Active
@@ -233,13 +282,12 @@ access(all) contract Lotto {
                 ticketPrice: self.ticketPrice,
                 endTime: self.endTime,
                 createdAt: self.createdAt,
-                isEnded: self.isEnded,
                 totalPool: self.getTotalPool(),
                 totalTickets: self.getTotalTickets(),
-                isActive: self.isActive(),
                 participantTickets: ticketsCopy,
                 state: self.getState(),
                 winner: self.winner,
+                scheduledWinnerSelectionTime: self.scheduledWinnerSelectionTime,
                 prizesDistributed: self.prizesDistributed
             )
         }
@@ -312,6 +360,9 @@ access(all) contract Lotto {
         access(all) fun buyTicketsForActiveSession(buyer: Address, payment: @FlowToken.Vault, numberOfTickets: UInt64)
         access(all) fun getUserTicketCountForActiveSession(user: Address): UInt64
         access(all) fun canUserBuyTicketsForActiveSession(user: Address, numberOfTickets: UInt64): Bool
+        
+        // Session lifecycle methods (automatic via Flow Actions)
+        access(all) fun selectWinnerAutomatically(sessionID: UInt64)
     }
     
     /// Struct to return session information
@@ -321,13 +372,12 @@ access(all) contract Lotto {
         access(all) let ticketPrice: UFix64
         access(all) let endTime: UFix64
         access(all) let createdAt: UFix64
-        access(all) let isEnded: Bool
         access(all) let totalPool: UFix64
         access(all) let totalTickets: UInt64
-        access(all) let isActive: Bool
         access(all) let participantTickets: {Address: UInt64}
         access(all) let state: SessionState
         access(all) let winner: Address?
+        access(all) let scheduledWinnerSelectionTime: UFix64
         access(all) let prizesDistributed: Bool
         
         init(
@@ -336,13 +386,12 @@ access(all) contract Lotto {
             ticketPrice: UFix64,
             endTime: UFix64,
             createdAt: UFix64,
-            isEnded: Bool,
             totalPool: UFix64,
             totalTickets: UInt64,
-            isActive: Bool,
             participantTickets: {Address: UInt64},
             state: SessionState,
             winner: Address?,
+            scheduledWinnerSelectionTime: UFix64,
             prizesDistributed: Bool
         ) {
             self.sessionID = sessionID
@@ -350,13 +399,12 @@ access(all) contract Lotto {
             self.ticketPrice = ticketPrice
             self.endTime = endTime
             self.createdAt = createdAt
-            self.isEnded = isEnded
             self.totalPool = totalPool
             self.totalTickets = totalTickets
-            self.isActive = isActive
             self.participantTickets = participantTickets
             self.state = state
             self.winner = winner
+            self.scheduledWinnerSelectionTime = scheduledWinnerSelectionTime
             self.prizesDistributed = prizesDistributed
         }
     }
@@ -396,6 +444,7 @@ access(all) contract Lotto {
             )
             
             let sessionID = newSession.sessionID
+            let scheduledWinnerSelectionTime = newSession.scheduledWinnerSelectionTime
             self.sessionIDs.append(sessionID)
             
             self.activeSession <-! newSession
@@ -404,7 +453,17 @@ access(all) contract Lotto {
                 sessionID: sessionID,
                 creator: creator,
                 ticketPrice: ticketPrice,
-                endTime: endTime
+                endTime: endTime,
+                scheduledWinnerSelectionTime: scheduledWinnerSelectionTime
+            )
+            
+            // Emit scheduled winner selection event
+            // scheduledTransactionID will be nil for now (set in transaction)
+            emit WinnerSelectionScheduled(
+                sessionID: sessionID,
+                creator: creator,
+                scheduledFor: scheduledWinnerSelectionTime,
+                scheduledTransactionID: nil
             )
         }
         
@@ -422,13 +481,12 @@ access(all) contract Lotto {
                 ticketPrice: session.ticketPrice,
                 endTime: session.endTime,
                 createdAt: session.createdAt,
-                isEnded: session.isEnded,
                 totalPool: session.getTotalPool(),
                 totalTickets: session.getTotalTickets(),
-                isActive: session.isActive(),
                 participantTickets: ticketsCopy,
                 state: session.getState(),
                 winner: session.winner,
+                scheduledWinnerSelectionTime: session.scheduledWinnerSelectionTime,
                 prizesDistributed: session.prizesDistributed
             )
         }
@@ -541,6 +599,232 @@ access(all) contract Lotto {
         access(all) fun canUserBuyTicketsForActiveSession(user: Address, numberOfTickets: UInt64): Bool {
             return self.activeSession?.canUserBuyTickets(user: user, numberOfTickets: numberOfTickets) ?? false
         }
+        
+        // ========================================
+        // Session Closing and Winner Selection
+        // ========================================
+        
+        /// Select winner automatically using on-chain randomness
+        /// Triggered automatically by Flow Actions at scheduled time
+        /// Can also be called manually after scheduled time
+        access(all) fun selectWinnerAutomatically(sessionID: UInt64) {
+            // For active session, archive it first if expired
+            if let session = &self.activeSession as &Session? {
+                if session.sessionID == sessionID {
+                    // Verify session has expired
+                    assert(
+                        getCurrentBlock().timestamp >= session.endTime,
+                        message: "Session has not expired yet. Ends at: ".concat(session.endTime.toString())
+                    )
+                    
+                    // Verify not already ended
+                    assert(!session.isEnded, message: "Session already ended")
+                    
+                    session.markAsEnded()
+                    
+                    emit SessionExpired(
+                        sessionID: sessionID,
+                        totalPool: session.getTotalPool(),
+                        totalTickets: session.getTotalTickets()
+                    )
+                    
+                    // Archive the session
+                    self.archiveActiveSession()
+                }
+            }
+            
+            // Now get session from completed sessions
+            let session = &self.completedSessions[sessionID] as &Session?
+                ?? panic("Session not found in completed sessions")
+            
+            // Verify session is expired and not already processed
+            assert(session.isEnded, message: "Session not yet ended")
+            assert(session.state == SessionState.Expired, message: "Session state must be Expired")
+            assert(session.winner == nil, message: "Winner already selected")
+            
+            // Check if session has participants
+            let totalTickets = session.getTotalTickets()
+            if totalTickets == 0 {
+                // No participants - refund creator (minus platform fee)
+                self.refundCreator(sessionID: sessionID)
+                return
+            }
+            
+            // Generate random number using revertibleRandom
+            let randomSeed = revertibleRandom<UInt64>()
+            let winningTicket = randomSeed % totalTickets
+            
+            // Find winner based on ticket distribution
+            var currentIndex: UInt64 = 0
+            var winnerFound = false
+            var winnerAddress: Address? = nil
+            var winnerTickets: UInt64 = 0
+            
+            for participant in session.participantTickets.keys {
+                let ticketCount = session.participantTickets[participant]!
+                
+                if winningTicket >= currentIndex && winningTicket < currentIndex + ticketCount {
+                    winnerAddress = participant
+                    winnerTickets = ticketCount
+                    winnerFound = true
+                    break
+                }
+                
+                currentIndex = currentIndex + ticketCount
+            }
+            
+            assert(winnerFound, message: "Failed to select winner")
+            
+            session.setWinner(winner: winnerAddress!)
+            
+            let totalPool = session.getTotalPool()
+            let winnerPrize = totalPool * 0.85  // 85% to winner
+            
+            emit WinnerSelected(
+                sessionID: sessionID,
+                winner: winnerAddress!,
+                totalTickets: totalTickets,
+                winnerTickets: winnerTickets,
+                prize: winnerPrize
+            )
+            
+            // Automatically distribute prizes
+            self.distributePrizes(sessionID: sessionID)
+        }
+        
+        /// Distribute prizes (internal, called by selectWinnerAutomatically)
+        access(contract) fun distributePrizes(sessionID: UInt64) {
+            let session = &self.completedSessions[sessionID] as &Session?
+                ?? panic("Session not found")
+            
+            // Verify prerequisites
+            assert(session.winner != nil, message: "No winner selected")
+            assert(!session.prizesDistributed, message: "Prizes already distributed")
+            
+            let totalPool = session.getTotalPool()
+            
+            // Calculate splits: 85% winner, 10% creator, 5% platform
+            let winnerAmount = totalPool * 0.85      // 85%
+            let creatorAmount = totalPool * 0.10     // 10%
+            let platformAmount = totalPool * 0.05    // 5%
+            
+            // Withdraw from session vault using helper method
+            let winnerVault <- session.withdrawFromVault(amount: winnerAmount)
+            let creatorVault <- session.withdrawFromVault(amount: creatorAmount)
+            let platformVault <- session.withdrawFromVault(amount: platformAmount)
+            
+            // Get receiver capabilities
+            let winnerReceiver = getAccount(session.winner!)
+                .capabilities.get<&{FungibleToken.Receiver}>(/public/flowTokenReceiver)
+                .borrow() ?? panic("Winner has no FlowToken receiver")
+            
+            let creatorReceiver = getAccount(session.creator)
+                .capabilities.get<&{FungibleToken.Receiver}>(/public/flowTokenReceiver)
+                .borrow() ?? panic("Creator has no FlowToken receiver")
+            
+            let platformReceiver = getAccount(Lotto.platformAddress)
+                .capabilities.get<&{FungibleToken.Receiver}>(/public/flowTokenReceiver)
+                .borrow() ?? panic("Platform has no FlowToken receiver")
+            
+            // Deposit to recipients
+            winnerReceiver.deposit(from: <-winnerVault)
+            creatorReceiver.deposit(from: <-creatorVault)
+            platformReceiver.deposit(from: <-platformVault)
+            
+            // Mark as complete
+            session.markPrizesDistributed()
+            
+            emit PrizesDistributed(
+                sessionID: sessionID,
+                winner: session.winner!,
+                winnerAmount: winnerAmount,
+                creatorAmount: creatorAmount,
+                platformAmount: platformAmount
+            )
+        }
+        
+        /// Refund creator when session has no participants (internal)
+        access(contract) fun refundCreator(sessionID: UInt64) {
+            let session = &self.completedSessions[sessionID] as &Session?
+                ?? panic("Session not found")
+            
+            let totalPool = session.getTotalPool()
+            
+            if totalPool > 0.0 {
+                let platformFee = totalPool * 0.05  // 5% platform fee
+                let refundAmount = totalPool - platformFee
+                
+                // Send platform fee
+                if platformFee > 0.0 {
+                    let platformVault <- session.withdrawFromVault(amount: platformFee)
+                    let platformReceiver = getAccount(Lotto.platformAddress)
+                        .capabilities.get<&{FungibleToken.Receiver}>(/public/flowTokenReceiver)
+                        .borrow() ?? panic("Platform has no receiver")
+                    platformReceiver.deposit(from: <-platformVault)
+                }
+                
+                // Refund creator
+                if refundAmount > 0.0 {
+                    let creatorVault <- session.withdrawFromVault(amount: refundAmount)
+                    let creatorReceiver = getAccount(session.creator)
+                        .capabilities.get<&{FungibleToken.Receiver}>(/public/flowTokenReceiver)
+                        .borrow() ?? panic("Creator has no receiver")
+                    creatorReceiver.deposit(from: <-creatorVault)
+                }
+            }
+            
+            session.markPrizesDistributed()
+            
+            emit SessionRefunded(
+                sessionID: sessionID,
+                creator: session.creator,
+                refundAmount: totalPool - (totalPool * 0.025)
+            )
+        }
+    }
+
+    // ========================================
+    // Scheduled Transaction Handler
+    // ========================================
+    
+    /// Handler resource for scheduled winner selection
+    /// Implements FlowTransactionScheduler.TransactionHandler interface
+    access(all) resource WinnerSelectionHandler: FlowTransactionScheduler.TransactionHandler {
+        
+        /// Execute winner selection for a session
+        /// This function is called automatically by FlowTransactionScheduler at the scheduled time
+        access(FlowTransactionScheduler.Execute) fun executeTransaction(id: UInt64, data: AnyStruct?) {
+            // Data should contain: {sessionID: UInt64, creator: Address}
+            let sessionData = data as! {String: AnyStruct}
+            let sessionID = sessionData["sessionID"]! as! UInt64
+            let creator = sessionData["creator"]! as! Address
+            
+            // Get the session manager from creator's account
+            let managerRef = getAccount(creator)
+                .capabilities.get<&{Lotto.SessionManagerPublic}>(Lotto.SessionPublicPath)
+                .borrow()
+                ?? panic("Could not borrow SessionManager from creator account")
+            
+            // Execute automatic winner selection
+            managerRef.selectWinnerAutomatically(sessionID: sessionID)
+            
+            log("Scheduled winner selection executed for session #".concat(sessionID.toString()))
+        }
+
+        access(all) view fun getViews(): [Type] {
+            return [Type<StoragePath>(), Type<PublicPath>()]
+        }
+
+        access(all) fun resolveView(_ view: Type): AnyStruct? {
+            switch view {
+                case Type<StoragePath>():
+                    return Lotto.WinnerSelectionHandlerStoragePath
+                case Type<PublicPath>():
+                    return Lotto.WinnerSelectionHandlerPublicPath
+                default:
+                    return nil
+            }
+        }
     }
 
     // ========================================
@@ -567,15 +851,21 @@ access(all) contract Lotto {
         return <- create SessionManager()
     }
 
+    /// Create a new winner selection handler for scheduled transactions
+    access(all) fun createWinnerSelectionHandler(): @WinnerSelectionHandler {
+        return <- create WinnerSelectionHandler()
+    }
+
     // ========================================
     // Contract Initialization
     // ========================================
     
     init() {
         // Set fee percentages
-        self.platformFeePercentage = 0.05  // 5%
-        self.creatorFeePercentage = 0.10   // 10%
+        self.platformFeePercentage = 0.05  // 5% platform fee
+        self.creatorFeePercentage = 0.10   // 10% creator fee
         self.maxTicketsPerWallet = 3
+        self.winnerSelectionDelayInSeconds = 50.0  // 50 seconds after session end
         
         // Set platform address to contract account initially
         self.platformAddress = self.account.address
@@ -587,6 +877,8 @@ access(all) contract Lotto {
         self.SessionStoragePath = /storage/LottoSessionManager
         self.SessionPublicPath = /public/LottoSessionManager
         self.AdminStoragePath = /storage/LottoAdmin
+        self.WinnerSelectionHandlerStoragePath = /storage/LottoWinnerSelectionHandler
+        self.WinnerSelectionHandlerPublicPath = /public/LottoWinnerSelectionHandler
         
         // Create and save admin resource
         self.account.storage.save(<-create Admin(), to: self.AdminStoragePath)

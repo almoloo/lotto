@@ -3,6 +3,7 @@ import { useFlowQuery } from '@onflow/react-sdk';
 import { GET_ALL_SESSIONS } from '../lib/scripts';
 import { useEffect } from 'react';
 import type { SessionInfo } from '../types/session';
+import { isSessionActive } from '../types/session';
 
 export default function UserProfileView() {
 	const { address } = useParams<{ address: string }>();
@@ -73,11 +74,16 @@ export default function UserProfileView() {
 						</p>
 						<p>
 							Status:{' '}
-							{session.isActive ? '🟢 Active' : '⚪ Ended'}
+							{isSessionActive(session)
+								? '🟢 Active'
+								: '⚪ Ended'}
 						</p>
-						<p>Total Pool: {session.totalPoolAmount} FLOW</p>
-						<p>Tickets Sold: {session.ticketsSold}</p>
-						<p>Participants: {session.participantCount}</p>
+						<p>Total Pool: {session.totalPool} FLOW</p>
+						<p>Tickets Sold: {session.totalTickets}</p>
+						<p>
+							Participants:{' '}
+							{Object.keys(session.participantTickets).length}
+						</p>
 						<NavLink
 							to={`/session/${session.creator}/${session.sessionID}`}
 							className="text-blue-500 underline"

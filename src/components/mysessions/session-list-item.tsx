@@ -4,6 +4,7 @@ import StatusBadge from '@/components/session/status-badge';
 import { useEffect, useState } from 'react';
 import { LoaderIcon } from 'lucide-react';
 import { calculateTimeRemaining } from '@/lib/utils';
+import { getSessionState } from '@/types/session';
 
 interface SessionListItemProps {
 	session: SessionInfo;
@@ -40,8 +41,7 @@ export default function SessionListItem({ session }: SessionListItemProps) {
 						Session #{session.sessionID}
 					</h4>
 					<StatusBadge
-						isActive={session.isActive}
-						isEnded={session.isEnded}
+						state={getSessionState(session)}
 						endTime={session.endTime}
 						startTime={session.createdAt}
 					/>

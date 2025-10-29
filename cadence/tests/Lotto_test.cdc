@@ -16,8 +16,8 @@ access(all) fun testContractInitialization() {
     // Test that contract was initialized correctly
     Test.assertEqual(5.0, Lotto.platformFeePercentage * 100.0)  // 5%
     Test.assertEqual(10.0, Lotto.creatorFeePercentage * 100.0)  // 10%
-    Test.assertEqual(UInt64(3), Lotto.maxTicketsPerWallet)
-    Test.assertEqual(UInt64(1), Lotto.nextSessionID)
+    Test.assertEqual(3 as UInt64, Lotto.maxTicketsPerWallet)
+    Test.assertEqual(1 as UInt64, Lotto.nextSessionID)
 }
 
 access(all) fun testCreateSessionManager() {
@@ -50,18 +50,18 @@ access(all) fun testCreateSession() {
     )
     
     // Verify session was created
-    Test.assertEqual(UInt64(1), sessionManager.getActiveSessionID()!)
+    Test.assertEqual(1 as UInt64, sessionManager.getActiveSessionID()!)
     Test.assertEqual(1, sessionManager.getTotalSessionsCount())
     
     // Get active session and verify
     let sessionInfo = sessionManager.getActiveSession()!
-    Test.assertEqual(UInt64(1), sessionInfo.sessionID)
+    Test.assertEqual(1 as UInt64, sessionInfo.sessionID)
     Test.assertEqual(creator.address, sessionInfo.creator)
     Test.assertEqual(1.0, sessionInfo.ticketPrice)
     Test.assertEqual(endTime, sessionInfo.endTime)
-    Test.assertEqual(true, sessionInfo.isActive)
+    Test.assertEqual(0 as UInt8, sessionInfo.state.rawValue)  // Active state
     Test.assertEqual(0.0, sessionInfo.totalPool)
-    Test.assertEqual(UInt64(0), sessionInfo.totalTickets)
+    Test.assertEqual(0 as UInt64, sessionInfo.totalTickets)
     
     destroy sessionManager
 }
@@ -87,8 +87,8 @@ access(all) fun testSessionIDIncreases() {
     )
     
     // Verify session IDs are different
-    Test.assertEqual(UInt64(2), sessionManager1.getActiveSessionID()!)
-    Test.assertEqual(UInt64(3), sessionManager2.getActiveSessionID()!)
+    Test.assertEqual(2 as UInt64, sessionManager1.getActiveSessionID()!)
+    Test.assertEqual(3 as UInt64, sessionManager2.getActiveSessionID()!)
     
     destroy sessionManager1
     destroy sessionManager2
@@ -134,8 +134,9 @@ access(all) fun testSessionHistory() {
     
     Test.assertEqual(1.0, firstSession.ticketPrice)
     Test.assertEqual(2.0, secondSession.ticketPrice)
-    Test.assertEqual(false, firstSession.isActive)  // archived
-    Test.assertEqual(true, secondSession.isActive)   // active
+    // First session is expired (state 1), second is active (state 0)
+    Test.assert(firstSession.state.rawValue != 0, message: "First session should not be active")
+    Test.assertEqual(0 as UInt8, secondSession.state.rawValue)  // Active
     
     // Get all sessions
     let allSessions = sessionManager.getAllSessions()
@@ -170,7 +171,7 @@ access(all) fun testTicketPurchaseMethods() {
     
     // Test getUserTicketCountForActiveSession - should return 0 initially
     let ticketCount = sessionManager.getUserTicketCountForActiveSession(user: buyer1.address)
-    Test.assertEqual(UInt64(0), ticketCount)
+    Test.assertEqual(0 as UInt64, ticketCount)
     
     // Test canUserBuyTicketsForActiveSession
     let canBuyOne = sessionManager.canUserBuyTicketsForActiveSession(user: buyer1.address, numberOfTickets: 1)
@@ -189,7 +190,7 @@ access(all) fun testTicketPurchaseMethods() {
     let info = sessionManager.getActiveSession()!
     Test.assertEqual(creator.address, info.creator)
     Test.assertEqual(1.5, info.ticketPrice)
-    Test.assertEqual(true, info.isActive)
+    Test.assertEqual(0 as UInt8, info.state.rawValue)  // Active state
     
     destroy sessionManager
 }

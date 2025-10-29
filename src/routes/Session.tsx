@@ -3,6 +3,7 @@ import { GET_SESSION_BY_ID } from '@/lib/scripts';
 import { useFlowQuery } from '@onflow/react-sdk';
 import {
 	getSessionState,
+	isSessionEnded,
 	type SessionInfo as SessionInfoType,
 } from '@/types/session';
 import SessionInfo from '@/components/session/session-info';
@@ -70,7 +71,7 @@ export default function LotterySessionView() {
 			<ParticipantBox participants={data.participantTickets} />
 
 			<PurchaseBox
-				isEnded={data.isEnded}
+				isEnded={isSessionEnded(data)}
 				ticketPrice={data.ticketPrice}
 				refetch={refetch}
 			/>

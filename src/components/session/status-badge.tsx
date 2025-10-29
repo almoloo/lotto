@@ -36,9 +36,7 @@ export default function StatusBadge({
 		if (!isEnabled) {
 			setEnergy(0);
 			if (state === SessionState.Expired) {
-				setStateLabel('Waiting to Close');
-			} else if (state === SessionState.Closed) {
-				setStateLabel('Ready for Winner Selection');
+				setStateLabel('Expired - Awaiting Winner Selection');
 			} else if (state === SessionState.WinnerPicked) {
 				setStateLabel('Winner Picked');
 			} else if (state === SessionState.Completed) {

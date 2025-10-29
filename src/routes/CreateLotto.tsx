@@ -8,6 +8,7 @@ import {
 import * as z from 'zod';
 import { Controller, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
+import { isSessionActive } from '../types/session';
 import {
 	Field,
 	FieldError,
@@ -84,8 +85,8 @@ export default function CreateLottoView() {
 
 	useEffect(() => {
 		if (userSessions && userSessions.length > 1) {
-			const activeSession = userSessions.find(
-				(session) => session.isActive && !session.isEnded
+			const activeSession = userSessions.find((session) =>
+				isSessionActive(session)
 			);
 
 			if (activeSession) {
