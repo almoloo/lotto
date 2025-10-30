@@ -14,8 +14,9 @@ access(all) fun setup() {
 
 access(all) fun testContractInitialization() {
     // Test that contract was initialized correctly
-    Test.assertEqual(5.0, Lotto.platformFeePercentage * 100.0)  // 5%
+    Test.assertEqual(2.5, Lotto.platformFeePercentage * 100.0)  // 2.5%
     Test.assertEqual(10.0, Lotto.creatorFeePercentage * 100.0)  // 10%
+    Test.assertEqual(2.5, Lotto.closerFeePercentage * 100.0)  // 2.5%
     Test.assertEqual(3 as UInt64, Lotto.maxTicketsPerWallet)
     Test.assertEqual(1 as UInt64, Lotto.nextSessionID)
 }

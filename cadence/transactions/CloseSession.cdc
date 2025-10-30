@@ -1,16 +1,20 @@
 import "Lotto"
 
-/// Transaction to automatically select winner for an expired session
-/// This transaction is designed to be triggered by Flow Forte Actions at the scheduled time
-/// Can also be called manually by anyone after the scheduled winner selection time
+/// Transaction to manually close an expired session and distribute prizes
+/// Can be called by anyone after the session end time
+/// The caller receives a 2.5% fee for closing the session
 ///
 /// @param sessionOwner: Address of the session creator
-/// @param sessionID: ID of the session to select winner for
+/// @param sessionID: ID of the session to close
 transaction(sessionOwner: Address, sessionID: UInt64) {
     
     let sessionManager: &{Lotto.SessionManagerPublic}
+    let closer: Address
     
     prepare(signer: &Account) {
+        // Store the signer's address as the closer
+        self.closer = signer.address
+        
         // Get session manager reference
         let managerCap = getAccount(sessionOwner)
             .capabilities.get<&{Lotto.SessionManagerPublic}>(Lotto.SessionPublicPath)
@@ -20,13 +24,13 @@ transaction(sessionOwner: Address, sessionID: UInt64) {
     }
     
     execute {
-        // Select winner automatically using on-chain randomness
+        // Close session, select winner, and distribute prizes
         // This will:
         // 1. Archive the active session if it matches sessionID and is expired
         // 2. Generate random winner using revertibleRandom()
-        // 3. Automatically distribute prizes (90% winner, 10% platform)
-        self.sessionManager.selectWinnerAutomatically(sessionID: sessionID)
+        // 3. Distribute prizes (85% winner, 10% creator, 2.5% platform, 2.5% closer)
+        self.sessionManager.closeSessionAndDistribute(sessionID: sessionID, closer: self.closer)
         
-        log("Winner selected automatically and prizes distributed for session ".concat(sessionID.toString()))
+        log("Session ".concat(sessionID.toString()).concat(" closed and prizes distributed by ").concat(self.closer.toString()))
     }
 }
