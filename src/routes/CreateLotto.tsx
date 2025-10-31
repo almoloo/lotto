@@ -27,7 +27,7 @@ import {
 } from '@/components/ui/popover';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { toast } from 'sonner';
-import { redirect } from 'react-router';
+import { useNavigate } from 'react-router';
 
 const formSchema = z.object({
 	ticketPrice: z
@@ -43,6 +43,7 @@ const formSchema = z.object({
 });
 
 export default function CreateLottoView() {
+	const navigate = useNavigate();
 	const [loadingSessions, setLoadingSessions] = useState<boolean>(false);
 
 	const form = useForm<z.infer<typeof formSchema>>({
@@ -53,7 +54,7 @@ export default function CreateLottoView() {
 		},
 	});
 
-	const { mutateAsync, isPending, error } = useFlowMutate();
+	const { mutateAsync, isPending, error, isError } = useFlowMutate();
 
 	async function handleSubmit(data: z.infer<typeof formSchema>) {
 		console.log('Form Data:', data);
@@ -65,11 +66,16 @@ export default function CreateLottoView() {
 					arg(data.endTime.toFixed(1), t.UFix64),
 				],
 			});
+
+			if (isError) {
+				throw new Error(error?.message || 'Transaction failed');
+			}
+
 			console.log('Transaction submitted with ID:', txId);
 			toast.success('Lotto session created successfully!');
 
 			setLoadingSessions(true);
-			redirect(`/mysessions`);
+			navigate(`/mysessions`);
 		} catch (error) {
 			console.error('Error creating session:', error);
 			toast.error('Failed to create lotto session. Please try again.');
@@ -83,7 +89,7 @@ export default function CreateLottoView() {
 					<div className="flex flex-col items-center">
 						<LoaderIcon className="h-8 w-8 animate-spin mb-5" />
 						<p className="text-lg font-medium max-w-[300px] text-center">
-							You'll be redirected to your active session
+							You'll be redirected to your sessions page
 							shortly...
 						</p>
 					</div>
@@ -201,7 +207,7 @@ export default function CreateLottoView() {
 																e.target.value
 															)
 														}
-														className="w-20"
+														className="grow"
 														placeholder="HH"
 													/>
 													<span className="self-center">
@@ -221,7 +227,7 @@ export default function CreateLottoView() {
 																e.target.value
 															)
 														}
-														className="w-20"
+														className="grow"
 														placeholder="MM"
 													/>
 												</div>

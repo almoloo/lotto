@@ -8,11 +8,13 @@ export default function PrizeInfo({ totalPool }: PrizeInfoProps) {
 	const [winnerPrize, setWinnerPrize] = useState<number>(0);
 	const [creatorFee, setCreatorFee] = useState<number>(0);
 	const [platformFee, setPlatformFee] = useState<number>(0);
+	const [closerPrize, setCloserPrize] = useState<number>(0);
 
 	useEffect(() => {
 		setWinnerPrize(parseFloat(totalPool) * 0.85);
 		setCreatorFee(parseFloat(totalPool) * 0.1);
-		setPlatformFee(parseFloat(totalPool) * 0.05);
+		setPlatformFee(parseFloat(totalPool) * 0.025);
+		setCloserPrize(parseFloat(totalPool) * 0.025);
 	}, [totalPool]);
 
 	return (
@@ -30,7 +32,11 @@ export default function PrizeInfo({ totalPool }: PrizeInfoProps) {
 					></div>
 					<div
 						className="bg-sky-400 h-4 rounded"
-						style={{ width: '5%' }}
+						style={{ width: '2.5%' }}
+					></div>
+					<div
+						className="bg-purple-400 h-4 rounded"
+						style={{ width: '2.5%' }}
 					></div>
 				</div>
 
@@ -62,8 +68,24 @@ export default function PrizeInfo({ totalPool }: PrizeInfoProps) {
 								<span>Platform receives</span>
 								<div className="grow border-b border-dashed border-slate-300"></div>
 								<strong>
-									<small className="font-normal">(5%) </small>
+									<small className="font-normal">
+										(2.5%){' '}
+									</small>
 									{platformFee.toFixed(2)} FLOW
+								</strong>
+							</div>
+						</div>
+
+						<div className="space-y-2 text-sm">
+							<div className="flex items-center gap-2">
+								<div className="h-4 w-4 bg-purple-400 rounded"></div>
+								<span>Closer receives</span>
+								<div className="grow border-b border-dashed border-slate-300"></div>
+								<strong>
+									<small className="font-normal">
+										(2.5%){' '}
+									</small>
+									{closerPrize.toFixed(2)} FLOW
 								</strong>
 							</div>
 						</div>

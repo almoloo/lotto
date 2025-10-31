@@ -164,3 +164,42 @@ transaction(sessionOwner: Address, numberOfTickets: UInt64) {
     }
 }
 `;
+
+export const GET_USER_SESSIONS = () => `
+import Lotto from ${contractAddress}
+
+access(all) fun main(sessionOwner: Address, userAddress: Address): [Lotto.SessionInfo] {
+    let cap = getAccount(sessionOwner)
+        .capabilities.get<&{Lotto.SessionManagerPublic}>(Lotto.SessionPublicPath)
+    
+    if let sessionManager = cap.borrow() {
+        return sessionManager.getUserSessions(userAddress: userAddress)
+    }
+    
+    return []
+}
+`;
+
+export const CLOSE_SESSION_TRANSACTION = () => `
+import Lotto from ${contractAddress}
+import FungibleToken from ${fungibleTokenAddress}
+import FlowToken from ${flowTokenAddress}
+
+transaction(sessionManagerAddress: Address, sessionID: UInt64) {
+    let sessionManagerRef: &{Lotto.SessionManagerPublic}
+    let closerAddress: Address
+
+    prepare(signer: &Account) {
+        self.closerAddress = signer.address
+        
+        self.sessionManagerRef = getAccount(sessionManagerAddress)
+            .capabilities.get<&{Lotto.SessionManagerPublic}>(Lotto.SessionPublicPath)
+            .borrow()
+            ?? panic("Could not borrow SessionManager reference")
+    }
+
+    execute {
+        self.sessionManagerRef.closeSessionAndDistribute(sessionID: sessionID, closer: self.closerAddress)
+    }
+}
+`;

@@ -13,10 +13,14 @@ import LoadingSession from '@/components/session/loading-session';
 import ErrorSession from '@/components/session/error-session';
 import StatusBadge from '@/components/session/status-badge';
 import ParticipantBox from '@/components/session/participant-box';
+import { useEffect, useState } from 'react';
+import CloseSession from '@/components/session/close-session';
 
 export default function LotterySessionView() {
 	const params = useParams<{ address: string; sessionId: string }>();
 	const { address, sessionId } = params;
+
+	const [isTimeRemaining, setIsTimeRemaining] = useState(true);
 
 	const { data, isLoading, error, refetch } = useFlowQuery({
 		cadence: GET_SESSION_BY_ID(),
@@ -27,6 +31,25 @@ export default function LotterySessionView() {
 		error: Error | null;
 		refetch: () => Promise<unknown>;
 	};
+
+	useEffect(() => {
+		if (!data) return;
+
+		const interval = setInterval(() => {
+			const endTime2 = Number(data?.endTime) * 1000;
+			const now = Date.now();
+			const diff = endTime2 - now;
+
+			if (diff <= 0) {
+				setIsTimeRemaining(false);
+				clearInterval(interval);
+			} else {
+				setIsTimeRemaining(true);
+			}
+		}, 1000);
+
+		return () => clearInterval(interval);
+	}, [data]);
 
 	if (isLoading) {
 		return <LoadingSession />;
@@ -70,11 +93,19 @@ export default function LotterySessionView() {
 
 			<ParticipantBox participants={data.participantTickets} />
 
-			<PurchaseBox
-				isEnded={isSessionEnded(data)}
-				ticketPrice={data.ticketPrice}
-				refetch={refetch}
-			/>
+			{isTimeRemaining ? (
+				<PurchaseBox
+					isEnded={isSessionEnded(data)}
+					ticketPrice={data.ticketPrice}
+					refetch={refetch}
+				/>
+			) : (
+				<CloseSession
+					state={getSessionState(data)}
+					winner={data.winner}
+					closer={data.closer}
+				/>
+			)}
 		</div>
 	);
 }

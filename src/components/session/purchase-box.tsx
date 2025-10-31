@@ -199,58 +199,6 @@ export default function PurchaseBox({
 			) : (
 				<ConnectButton />
 			)}
-			{/* <div>
-				{ticketStatus?.canBuyMore
-					? 'You can buy more tickets!'
-					: 'You have reached the maximum ticket limit.'}
-			</div> */}
-			{/* <div>currentTickets: {ticketStatus?.currentTickets}</div> */}
-			{/* <div>
-				maxAdditionalTickets: {ticketStatus?.maxAdditionalTickets}
-			</div> */}
-			{/* {props.isActive && ( //!isExpired && (
-				<div style={{ marginTop: '30px' }}>
-					<button
-						style={{
-							width: '100%',
-							padding: '15px',
-							background: '#4CAF50',
-							color: 'white',
-							border: 'none',
-							borderRadius: '5px',
-							fontSize: '18px',
-							fontWeight: 'bold',
-							cursor: 'pointer',
-						}}
-						onClick={handleBuyTickets}
-						disabled={!ticketStatus?.canBuyMore}
-					>
-						Buy Tickets ({props.ticketPrice} FLOW each)
-					</button>
-					<p
-						style={{
-							textAlign: 'center',
-							color: '#666',
-							marginTop: '10px',
-						}}
-					>
-						Maximum 3 tickets per wallet
-					</p>
-				</div>
-			)} */}
-			{/* {props.isEnded && (
-				<div
-					style={{
-						background: '#ffebee',
-						padding: '20px',
-						borderRadius: '10px',
-						textAlign: 'center',
-					}}
-				>
-					<h3>🏁 This session has ended</h3>
-					<p>Winner selection is pending...</p>
-				</div>
-			)} */}
 		</section>
 	);
 }

@@ -7,7 +7,7 @@ import "FlowToken"
 /// - Provably fair randomness with revertibleRandom()
 /// - Time-based session management
 /// - Manual prize distribution (85% winner, 10% creator, 2.5% platform, 2.5% closer)
-///
+/// 
 access(all) contract Lotto {
 
     // ========================================

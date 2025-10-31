@@ -1,46 +1,31 @@
 import { NavLink } from 'react-router';
 import { Connect, useFlowCurrentUser } from '@onflow/react-sdk';
-
-function NavLinkWrapper({
-	to,
-	children,
-}: {
-	to: string;
-	children: React.ReactNode;
-}) {
-	return (
-		<NavLink
-			to={to}
-			className="text-slate-900 hover:underline"
-		>
-			{children}
-		</NavLink>
-	);
-}
+import {
+	NavigationMenu,
+	NavigationMenuLink,
+} from '@/components/ui/navigation-menu';
 
 export default function Header() {
 	const { user } = useFlowCurrentUser();
 
 	return (
-		<header className="flex items-center px-5 xl:px-10 py-5 gap-10">
-			<NavLink to="/">
+		<header className="flex items-center px-5 xl:px-10 py-5 gap-3">
+			<NavLink
+				to="/"
+				className="mr-auto"
+			>
 				<h1 className="font-black text-3xl text-emerald-900">lotto</h1>
 			</NavLink>
-			<nav className="flex gap-5 ml-auto">
-				{user && user.addr && (
-					<>
-						<NavLinkWrapper to="create">
-							Create Lotto
-						</NavLinkWrapper>
-						<NavLinkWrapper to="/mysessions">
-							My Lottos
-						</NavLinkWrapper>
-						<NavLinkWrapper to="/tickets">
-							My Tickets
-						</NavLinkWrapper>
-					</>
-				)}
-			</nav>
+			{user && user.addr && (
+				<NavigationMenu className="space-x-3">
+					<NavigationMenuLink asChild>
+						<NavLink to="create">Create Lotto</NavLink>
+					</NavigationMenuLink>
+					<NavigationMenuLink asChild>
+						<NavLink to="/mysessions">My Lottos</NavLink>
+					</NavigationMenuLink>
+				</NavigationMenu>
+			)}
 			<div className="">
 				<Connect />
 			</div>

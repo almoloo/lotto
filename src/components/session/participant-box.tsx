@@ -1,14 +1,20 @@
 import ParticipantItem from '@/components/session/participant-item';
 import { ChevronDownIcon } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 interface ParticipantBoxProps {
 	participants: { [key: string]: string };
 }
 
 export default function ParticipantBox(props: ParticipantBoxProps) {
-	const [participantCount] = useState(Object.keys(props.participants).length);
+	const [participantCount, setParticipantCount] = useState(
+		Object.keys(props.participants).length
+	);
 	const [expanded, setExpanded] = useState(false);
+
+	useEffect(() => {
+		setParticipantCount(Object.keys(props.participants).length);
+	}, [props.participants]);
 
 	return (
 		<section className="bg-slate-100 p-5 xl:p-10 rounded-3xl">
