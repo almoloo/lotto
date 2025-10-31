@@ -129,6 +129,13 @@
 				"type": "file",
 				"location": "my-testnet-account.pkey"
 			}
+		},
+		"new-testnet-account": {
+			"address": "2e66b7540bb045dc",
+			"key": {
+				"type": "file",
+				"location": "new-testnet-account.pkey"
+			}
 		}
 	},
 	"deployments": {
@@ -136,7 +143,7 @@
 			"emulator-account": ["Lotto"]
 		},
 		"testnet": {
-			"my-testnet-account": ["Lotto"]
+			"new-testnet-account": ["Lotto"]
 		}
 	}
 }
